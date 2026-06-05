@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_controller"
+    android:padding="8dp"
+    android:keepScreenOn="true">
+    <Button
+        android:id="@+id/btnScan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SCAN QR"
+        android:layout_marginTop="20dp"
+        android:layout_centerHorizontal="true"/>
+
+    <!-- Top center: Select / Home / Start -->
+    <LinearLayout
+        android:id="@+id/centerTopGroup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnSelect"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/circle_button"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="[ ]"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btnHome"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/circle_button"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="HOME"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/circle_button"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="START"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- LT top-left -->
+    <Button
+        android:id="@+id/btnLT"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/btn_red"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="LT"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <!-- LB diagonal below-right of LT -->
+    <Button
+        android:id="@+id/btnLB"
+        android:layout_width="68dp"
+        android:layout_height="68dp"
+        android:layout_below="@id/btnLT"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="62dp"
+        android:layout_marginTop="-8dp"
+        android:background="@drawable/circle_button"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="LB"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <!-- D-pad -->
+    <FrameLayout
+        android:id="@+id/dpadFrame"
+        android:layout_width="140dp"
+        android:layout_height="140dp"
+        android:layout_below="@id/btnLB"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/dpad_shape">
+
+        <Button
+            android:id="@+id/btnDpadUp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="4dp"
+            android:background="@android:color/transparent"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="&#9650;"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnDpadDown"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="4dp"
+            android:background="@android:color/transparent"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="&#9660;"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnDpadLeft"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="&#9664;"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnDpadRight"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="4dp"
+            android:background="@android:color/transparent"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="&#9654;"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </FrameLayout>
+
+    <!-- RT top-right -->
+    <Button
+        android:id="@+id/btnRT"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginEnd="10dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/btn_red"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="RT"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <!-- RB diagonal below-left of RT -->
+    <Button
+        android:id="@+id/btnRB"
+        android:layout_width="68dp"
+        android:layout_height="68dp"
+        android:layout_below="@id/btnRT"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="62dp"
+        android:layout_marginTop="-8dp"
+        android:background="@drawable/circle_button"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="RB"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <!-- Y top of diamond -->
+    <Button
+        android:id="@+id/btnY"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_below="@id/btnRB"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="78dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/circle_button"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="Y"
+        android:textColor="#FFFFFF"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+
+    <!-- X middle-left of diamond -->
+    <Button
+        android:id="@+id/btnX"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_below="@id/btnY"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="130dp"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/circle_button"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="X"
+        android:textColor="#FFFFFF"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+
+    <!-- B middle-right of diamond -->
+    <Button
+        android:id="@+id/btnB"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_below="@id/btnY"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/circle_button"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="B"
+        android:textColor="#FFFFFF"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+
+    <!-- A bottom of diamond -->
+    <Button
+        android:id="@+id/btnA"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_below="@id/btnX"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="78dp"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/circle_button"
+        android:padding="0dp"
+        android:stateListAnimator="@null"
+        android:text="A"
+        android:textColor="#FFFFFF"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+
+    <!-- Left stick + Right stick side by side centered -->
+    <LinearLayout
+        android:id="@+id/stickGroup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="120dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnLS"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:background="@drawable/circle_button"
+            android:gravity="center"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="Left&#10;stick"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnRS"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/circle_button"
+            android:gravity="center"
+            android:padding="0dp"
+            android:stateListAnimator="@null"
+            android:text="Right&#10;stick"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Left joystick -->
+    <FrameLayout
+        android:id="@+id/leftJoystick"
+        android:layout_width="165dp"
+        android:layout_height="165dp"
+        android:layout_alignBottom="@id/btnA"
+        android:layout_toStartOf="@id/stickGroup"
+        android:layout_marginEnd="14dp"
+        android:background="@drawable/joystick_base">
+
+        <View
+            android:id="@+id/leftThumb"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_gravity="center"
+            android:background="@drawable/joystick_thumb" />
+    </FrameLayout>
+
+    <!-- Right joystick anchored to left of btnX -->
+    <FrameLayout
+        android:id="@+id/rightJoystick"
+        android:layout_width="165dp"
+        android:layout_height="165dp"
+        android:layout_alignBottom="@id/btnA"
+        android:layout_toStartOf="@id/btnX"
+        android:layout_marginEnd="14dp"
+        android:background="@drawable/joystick_base">
+
+        <View
+            android:id="@+id/rightThumb"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_gravity="center"
+            android:background="@drawable/joystick_thumb" />
+    </FrameLayout>
+
+</RelativeLayout>
