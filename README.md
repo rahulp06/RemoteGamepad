@@ -1,26 +1,52 @@
 # RemoteGamepad
 
-RemoteGamepad is an Android application that allows a mobile device to be used as a remote controller for interacting with another system. The application provides a simple interface for sending control inputs and improving remote accessibility.
+RemoteGamepad turns an Android phone into a wireless Xbox-style controller for PC gaming.
+
+The application communicates with a C# server over UDP and uses ViGEm to emulate a virtual Xbox 360 controller on Windows. Devices can be paired instantly using QR code scanning, eliminating the need for manual IP configuration.
 
 ## Features
 
-- Virtual gamepad controls
-- Touch-based input system
-- Easy device connectivity
-- Responsive user interface
-- Lightweight Android application
+* Wireless gamepad using Wi-Fi
+* QR code based device pairing
+* UDP low-latency communication
+* Dual analog sticks
+* D-Pad support
+* Face buttons (A, B, X, Y)
+* Triggers and shoulder buttons
+* Start, Select, Home, and stick buttons
+* Virtual Xbox 360 controller emulation using ViGEm
+* Support for multiple connected controllers
 
-## Built With
+## Tech Stack
 
-- Kotlin
-- Android SDK
-- Android Studio
+### Android Client
 
-## Screenshots
+* Kotlin
+* Android SDK
+* ZXing Barcode Scanner
 
-_Add screenshots here._
+### PC Server
+
+* C#
+* .NET
+* ViGEmBus
+* QRCoder
+
+## Architecture
+
+```text
+Android Phone
+      ↓ UDP
+C# Server
+      ↓ ViGEm
+Virtual Xbox Controller
+      ↓
+PC Games
+```
 
 ## Installation
+
+### Android App
 
 1. Clone the repository
 
@@ -29,24 +55,24 @@ git clone https://github.com/rahulp06/RemoteGamepad.git
 ```
 
 2. Open the project in Android Studio
+3. Sync Gradle dependencies
+4. Build and install the APK
 
-3. Sync Gradle and run the application
+### Server
 
-## Project Structure
-
-```text
-app/
- ├── src/
- ├── res/
- └── AndroidManifest.xml
-```
+1. Install .NET SDK
+2. Install ViGEmBus
+3. Build and run the server
+4. Scan the generated QR code from the Android app
 
 ## Future Improvements
 
-- Additional controller layouts
-- Improved connectivity options
-- Custom button mapping
-- Enhanced UI/UX
+* PlayStation controller theme
+* Multiple controller skins
+* Controller vibration support
+* Custom button mapping
+* Bluetooth connectivity
+* Improved analog stick precision
 
 ## Author
 
