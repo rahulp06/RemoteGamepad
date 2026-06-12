@@ -14,7 +14,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var socketClient: SocketClient
 
-    private var lastSentTime = 0L
+    private var lastLeftSentTime = 0L
+    private var lastRightSentTime = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,7 +84,7 @@ class MainActivity : AppCompatActivity() {
             val dx = event.x - cx
             val dy = event.y - cy
 
-            val maxR = v.width / 2f
+            val maxR = (v.width - thumb.width) / 2f
 
             val dist = sqrt(dx * dx + dy * dy)
 
@@ -107,7 +108,7 @@ class MainActivity : AppCompatActivity() {
             var normY = ly / maxR
 
             // 🔥 Deadzone
-            val deadzone = 0.12f
+            val deadzone = 0f
 
             if (abs(normX) < deadzone)
                 normX = 0f
@@ -115,13 +116,6 @@ class MainActivity : AppCompatActivity() {
             if (abs(normY) < deadzone)
                 normY = 0f
 
-            // 🔥 Smooth curve
-            fun curve(v: Float): Float {
-                return v * v * v
-            }
-
-            normX = curve(normX)
-            normY = curve(normY)
 
             // 🔥 Clamp
             normX = normX.coerceIn(-1f, 1f)
@@ -129,14 +123,27 @@ class MainActivity : AppCompatActivity() {
 
             val now = System.currentTimeMillis()
 
-            // 🔥 ~60 FPS updates
-            if (now - lastSentTime > 16) {
+            if (tag == "L") {
 
-                lastSentTime = now
+                if (now - lastLeftSentTime > 8) {
 
-                socketClient.send(
-                    "JOY_$tag:$normX,$normY"
-                )
+                    lastLeftSentTime = now
+
+                    socketClient.send(
+                        "JOY_$tag:$normX,$normY"
+                    )
+                }
+
+            } else {
+
+                if (now - lastRightSentTime > 8) {
+
+                    lastRightSentTime = now
+
+                    socketClient.send(
+                        "JOY_$tag:$normX,$normY"
+                    )
+                }
             }
 
             // 🔥 Reset on release
@@ -166,11 +173,13 @@ class MainActivity : AppCompatActivity() {
                 MotionEvent.ACTION_DOWN -> {
 
                     socketClient.send("${name}_DOWN")
+                    socketClient.send("${name}_DOWN")
                 }
 
                 MotionEvent.ACTION_UP,
                 MotionEvent.ACTION_CANCEL -> {
 
+                    socketClient.send("${name}_UP")
                     socketClient.send("${name}_UP")
                 }
             }

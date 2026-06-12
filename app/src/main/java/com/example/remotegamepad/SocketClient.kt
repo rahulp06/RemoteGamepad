@@ -56,7 +56,7 @@ class SocketClient {
                         serverPort
                     )
 
-                    socket!!.send(packet)
+                    socket?.send(packet)
 
                 } catch (e: Exception) {
 
