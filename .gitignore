@@ -10,3 +10,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+# C# / .NET build output
+Server/bin/
+Server/obj/
