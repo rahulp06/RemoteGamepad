@@ -67,6 +67,32 @@ class Program
     // than just gated, since those were the actual volume source.
     const bool DiagEnabled = false;
 
+    // Narrow XUSB report probe. This runs in the active button-edge path,
+    // immediately before its existing SubmitReport() call; it does not
+    // change input mapping or packet handling.
+    const bool XusbReportDiagEnabled = true;
+    static readonly HashSet<string> XusbReportDiagKeys = new HashSet<string>
+        { "A", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "HOME", "LT", "RT" };
+
+    static void TraceXusbReportBeforeSubmit(
+        PlayerConnection player,
+        string input,
+        bool pressed,
+        IXbox360Controller controller)
+    {
+        if (!XusbReportDiagEnabled || !XusbReportDiagKeys.Contains(input)) return;
+
+        int userIndex;
+        try { userIndex = controller.UserIndex; }
+        catch { userIndex = -1; }
+
+        Console.WriteLine(
+            $"[XUSB BEFORE SUBMIT] player={player.PlayerId} controllerObject={controller.GetHashCode()} " +
+            $"userIndex={userIndex} input={input} pressed={pressed} " +
+            $"wButtons=0x{controller.ButtonState:X4} " +
+            $"bLeftTrigger={controller.LeftTrigger} bRightTrigger={controller.RightTrigger}");
+    }
+
     static void Diag(PlayerConnection player, string msg)
     {
         if (!DiagEnabled) return;
@@ -529,6 +555,7 @@ class Program
                             break;
                     }
 
+                    TraceXusbReportBeforeSubmit(player, key, pressed, controller);
                     controller.SubmitReport();
                 }
             }
