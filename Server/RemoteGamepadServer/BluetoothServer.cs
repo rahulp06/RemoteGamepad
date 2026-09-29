@@ -24,13 +24,20 @@ public class BluetoothServer : IDisposable
     private BluetoothListener? _listener;
     private BluetoothClient? _client;
     private NetworkStream? _stream;
-    private CancellationTokenSource? _cts;
+
+    // Separate CTS/task for accept loop vs read loop
+    private CancellationTokenSource? _acceptCts;
+    private Task? _acceptTask;
+
+    private CancellationTokenSource? _readCts;
     private Task? _readTask;
+
+    private volatile bool _stopping;
 
     public bool IsConnected => _client?.Connected ?? false;
 
     public event EventHandler<string>? MessageReceived;
-    public event EventHandler? Connected;
+    public event EventHandler<string>? Connected;
     public event EventHandler? Disconnected;
     public event EventHandler<string>? Error;
 
@@ -47,6 +54,8 @@ public class BluetoothServer : IDisposable
         if (_listener != null)
             throw new InvalidOperationException("Server already started");
 
+        _stopping = false;
+
         _listener = new BluetoothListener(Protocol.SppUuid)
         {
             ServiceName = Protocol.ServiceName
@@ -58,10 +67,8 @@ public class BluetoothServer : IDisposable
         Console.WriteLine($"[SERVER] Service Name: {Protocol.ServiceName}");
         Console.WriteLine("[SERVER] Waiting for Android connection...");
 
-        _cts = new CancellationTokenSource();
-
-        // Accept loop on a background thread
-        Task.Run(() => AcceptLoop(_cts.Token));
+        _acceptCts = new CancellationTokenSource();
+        _acceptTask = Task.Run(() => AcceptLoop(_acceptCts.Token));
     }
 
     private void AcceptLoop(CancellationToken ct)
@@ -70,16 +77,36 @@ public class BluetoothServer : IDisposable
         {
             try
             {
-                var client = _listener!.AcceptBluetoothClient();
+                var listener = _listener;
+                if (listener == null || ct.IsCancellationRequested) break;
+
+                var client = listener.AcceptBluetoothClient();
                 if (ct.IsCancellationRequested)
                 {
-                    client.Close();
+                    try { client.Close(); } catch { }
                     return;
                 }
 
                 HandleClient(client);
             }
-            catch (Exception ex) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException)
+            {
+                // Normal shutdown — exit silently
+                break;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Listener was disposed during shutdown — exit silently
+                break;
+            }
+            catch (SocketException ex) when (
+                ex.SocketErrorCode == SocketError.Interrupted ||
+                ex.SocketErrorCode == SocketError.OperationAborted)
+            {
+                // Listener.Stop() interrupted the blocking accept — normal shutdown
+                break;
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && !_stopping)
             {
                 Error?.Invoke(this, $"Accept error: {ex.Message}");
                 Console.WriteLine($"[ERROR] Accept error: {ex.Message}");
@@ -100,11 +127,14 @@ public class BluetoothServer : IDisposable
         _client = client;
         _stream = client.GetStream();
 
-        Console.WriteLine($"[SERVER] Client connected: {client.RemoteMachineName}");
-        Connected?.Invoke(this, EventArgs.Empty);
+        var clientName = client.RemoteMachineName;
+        Console.WriteLine($"[SERVER] Client connected: {clientName}");
+        Connected?.Invoke(this, clientName);
 
-        _cts = new CancellationTokenSource();
-        _readTask = Task.Run(() => ReadLoop(_cts.Token));
+        // Use a SEPARATE CTS for the read loop (don't replace _acceptCts)
+        _readCts?.Cancel();
+        _readCts = new CancellationTokenSource();
+        _readTask = Task.Run(() => ReadLoop(_readCts.Token));
     }
 
     private void ReadLoop(CancellationToken ct)
@@ -214,7 +244,7 @@ public class BluetoothServer : IDisposable
     /// </summary>
     public void DisconnectClient()
     {
-        _cts?.Cancel();
+        _readCts?.Cancel();
         _readTask?.Wait(TimeSpan.FromSeconds(2));
         CleanupClient();
     }
@@ -224,11 +254,28 @@ public class BluetoothServer : IDisposable
     /// </summary>
     public void Stop()
     {
-        _cts?.Cancel();
+        _stopping = true;
+
+        // Cancel read loop first
+        _readCts?.Cancel();
         _readTask?.Wait(TimeSpan.FromSeconds(2));
         CleanupClient();
-        _listener?.Stop();
+
+        // Cancel accept loop
+        _acceptCts?.Cancel();
+        _acceptTask?.Wait(TimeSpan.FromSeconds(2));
+
+        // Stop listener and remove the advertised SDP service record so a
+        // subsequent Start() does not resolve a stale RFCOMM channel (scn:0).
+        try { _listener?.Dispose(); } catch { }
         _listener = null;
+
+        _acceptCts = null;
+        _acceptTask = null;
+        _readCts = null;
+        _readTask = null;
+        _stopping = false;
+
         Console.WriteLine("[SERVER] Stopped");
     }
 
@@ -243,6 +290,7 @@ public class BluetoothServer : IDisposable
     public void Dispose()
     {
         Stop();
-        _cts?.Dispose();
+        _acceptCts?.Dispose();
+        _readCts?.Dispose();
     }
 }

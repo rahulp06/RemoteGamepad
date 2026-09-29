@@ -22,6 +22,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -29,6 +30,9 @@ import com.remotegamepad.bluetooth.BluetoothService
 import com.remotegamepad.bluetooth.GamepadState
 import com.remotegamepad.bluetooth.Protocol
 import com.remotegamepad.databinding.ActivityMainBinding
+import com.remotegamepad.wifi.UdpDiscoveryClient
+import com.remotegamepad.wifi.WifiInputService
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView.Listener {
 
@@ -36,11 +40,16 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
         private const val TAG = "MainActivity"
         private const val PREFS_NAME = "remote_gamepad_prefs"
         private const val KEY_CONTROLLER_STYLE = "controller_style"
+        private const val BACK_GUARD_TIMEOUT_MS = 2000L
     }
 
     // ── Screen navigation ──
-    private enum class Screen { HOME, CONNECT, GAMEPAD }
+    private enum class Screen { HOME, CONNECT, WIFI_CONNECT, GAMEPAD }
     private var currentScreen = Screen.HOME
+
+    // ── Transport mode ──
+    private enum class Transport { NONE, BLUETOOTH, WIFI }
+    private var activeTransport = Transport.NONE
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var bluetoothService: BluetoothService
@@ -55,6 +64,17 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
 
     private var isScanning = false
     private var connectingDeviceName: String? = null
+
+    // ── Wi-Fi transport ──
+    private lateinit var udpDiscovery: UdpDiscoveryClient
+    private lateinit var wifiInputService: WifiInputService
+    private val discoveryExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "WifiDiscovery").apply { isDaemon = true }
+    }
+    private var isWifiScanning = false
+
+    // ── Gameplay back-guard ──
+    private var lastBackPressMs = 0L
 
     // Permission launcher
     private val permissionLauncher = registerForActivityResult(
@@ -114,6 +134,8 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
 
         bluetoothService = BluetoothService(this)
         bluetoothService.setCallback(this)
+        udpDiscovery = UdpDiscoveryClient(this)
+        wifiInputService = WifiInputService()
 
         setupRecyclerViews()
         setupButtons()
@@ -131,6 +153,8 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
             bluetoothAdapter?.cancelDiscovery()
         }
         bluetoothService.release()
+        wifiInputService.disconnect()
+        discoveryExecutor.shutdownNow()
     }
 
     //region UI Setup
@@ -171,28 +195,34 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
     }
 
     private fun showControllerStyleDialog() {
-        val styles = GamepadView.ControllerStyle.values()
-        val labels = styles.map { style ->
-            when (style) {
-                GamepadView.ControllerStyle.XBOX -> getString(com.remotegamepad.R.string.style_xbox)
-                GamepadView.ControllerStyle.PS -> getString(com.remotegamepad.R.string.style_ps)
-            }
-        }.toTypedArray()
-        val currentIndex = styles.indexOf(binding.gamepadView.controllerStyle)
+        val dialog = BottomSheetDialog(this, com.remotegamepad.R.style.RemoteGamepad_BottomSheet)
+        val view = layoutInflater.inflate(com.remotegamepad.R.layout.bottom_sheet_controller_style, null)
+        dialog.setContentView(view)
 
-        AlertDialog.Builder(this)
-            .setTitle(com.remotegamepad.R.string.controller_style_title)
-            .setSingleChoiceItems(labels, currentIndex) { dialog: android.content.DialogInterface, which: Int ->
-                val selected = styles[which]
-                binding.gamepadView.controllerStyle = selected
-                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                    .edit()
-                    .putString(KEY_CONTROLLER_STYLE, selected.name)
-                    .apply()
-                dialog.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        val radioXbox = view.findViewById<android.widget.RadioButton>(com.remotegamepad.R.id.radioXbox)
+        val radioPs = view.findViewById<android.widget.RadioButton>(com.remotegamepad.R.id.radioPs)
+        val optionXbox = view.findViewById<View>(com.remotegamepad.R.id.optionXbox)
+        val optionPs = view.findViewById<View>(com.remotegamepad.R.id.optionPs)
+
+        val currentStyle = binding.gamepadView.controllerStyle
+        radioXbox.isChecked = currentStyle == GamepadView.ControllerStyle.XBOX
+        radioPs.isChecked = currentStyle == GamepadView.ControllerStyle.PS
+
+        fun selectStyle(style: GamepadView.ControllerStyle) {
+            binding.gamepadView.controllerStyle = style
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putString(KEY_CONTROLLER_STYLE, style.name)
+                .apply()
+            radioXbox.isChecked = style == GamepadView.ControllerStyle.XBOX
+            radioPs.isChecked = style == GamepadView.ControllerStyle.PS
+            dialog.dismiss()
+        }
+
+        optionXbox.setOnClickListener { selectStyle(GamepadView.ControllerStyle.XBOX) }
+        optionPs.setOnClickListener { selectStyle(GamepadView.ControllerStyle.PS) }
+
+        dialog.show()
     }
 
     private fun setupNavigation() {
@@ -201,11 +231,27 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
             showConnect()
         }
 
-        // Connector screen back arrow
+        // Home → Wi-Fi connector
+        binding.cardWifi.setOnClickListener {
+            showWifiConnect()
+        }
+
+        // Bluetooth connector back arrow
         binding.btnBack.setOnClickListener {
             if (isScanning) stopDiscovery()
             bluetoothService.disconnect()
             showHome()
+        }
+
+        // Wi-Fi connector back arrow
+        binding.btnWifiBack.setOnClickListener {
+            stopWifiScan()
+            showHome()
+        }
+
+        // Wi-Fi scan button
+        binding.btnWifiScan.setOnClickListener {
+            startWifiDiscovery()
         }
 
         // System back button handling
@@ -213,12 +259,39 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
             override fun handleOnBackPressed() {
                 when (currentScreen) {
                     Screen.GAMEPAD -> {
-                        bluetoothService.disconnect()
-                        showConnect()
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (now - lastBackPressMs > BACK_GUARD_TIMEOUT_MS) {
+                            // First press — show guard hint, do NOT exit yet.
+                            lastBackPressMs = now
+                            android.widget.Toast.makeText(
+                                this@MainActivity,
+                                getString(com.remotegamepad.R.string.back_guard_hint),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            // Second deliberate press within window — exit.
+                            lastBackPressMs = 0L
+                            when (activeTransport) {
+                                Transport.BLUETOOTH -> {
+                                    bluetoothService.disconnect()
+                                    showConnect()
+                                }
+                                Transport.WIFI -> {
+                                    wifiInputService.disconnect()
+                                    activeTransport = Transport.NONE
+                                    showHome()
+                                }
+                                else -> showHome()
+                            }
+                        }
                     }
                     Screen.CONNECT -> {
                         if (isScanning) stopDiscovery()
                         bluetoothService.disconnect()
+                        showHome()
+                    }
+                    Screen.WIFI_CONNECT -> {
+                        stopWifiScan()
                         showHome()
                     }
                     Screen.HOME -> {
@@ -235,6 +308,7 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
         currentScreen = Screen.HOME
         binding.layoutHome.visibility = View.VISIBLE
         binding.layoutConnection.visibility = View.GONE
+        binding.layoutWifi.visibility = View.GONE
         binding.gamepadView.visibility = View.GONE
         setGamepadOrientation(active = false)
     }
@@ -243,15 +317,30 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
         currentScreen = Screen.CONNECT
         binding.layoutHome.visibility = View.GONE
         binding.layoutConnection.visibility = View.VISIBLE
+        binding.layoutWifi.visibility = View.GONE
         binding.gamepadView.visibility = View.GONE
         setGamepadOrientation(active = false)
         updateEmptyState()
+    }
+
+    private fun showWifiConnect() {
+        currentScreen = Screen.WIFI_CONNECT
+        binding.layoutHome.visibility = View.GONE
+        binding.layoutConnection.visibility = View.GONE
+        binding.layoutWifi.visibility = View.VISIBLE
+        binding.gamepadView.visibility = View.GONE
+        setGamepadOrientation(active = false)
+        updateWifiEmptyState()
+        // Do NOT auto-start discovery — user must tap Scan manually.
+        // Auto-discovery on screen entry caused spurious reconnections
+        // when returning from an active Wi-Fi gamepad session.
     }
 
     private fun showGamepad() {
         currentScreen = Screen.GAMEPAD
         binding.layoutHome.visibility = View.GONE
         binding.layoutConnection.visibility = View.GONE
+        binding.layoutWifi.visibility = View.GONE
         binding.gamepadView.visibility = View.VISIBLE
         setGamepadOrientation(active = true)
     }
@@ -291,10 +380,20 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
 
     //region GamepadView.Listener
     override fun onStateChanged(state: GamepadState) {
-        if (!bluetoothService.isConnected()) return
-        if (lastSentState != state) {
-            lastSentState = state
-            bluetoothService.send(state.toProtocolMessage())
+        when (activeTransport) {
+            Transport.BLUETOOTH -> {
+                if (!bluetoothService.isConnected()) return
+                if (lastSentState != state) {
+                    lastSentState = state
+                    bluetoothService.send(state.toProtocolMessage())
+                }
+            }
+            Transport.WIFI -> {
+                if (!wifiInputService.isConnected) return
+                lastSentState = state
+                wifiInputService.updateState(state)
+            }
+            else -> { /* no transport active */ }
         }
     }
     //endregion
@@ -376,11 +475,28 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
     }
     //endregion
 
-    //region Connection
+    //region Connection — Bluetooth
     private fun connectTo(device: BluetoothDevice) {
         if (isScanning) stopDiscovery()
         showConnectingState(device.name)
         bluetoothService.connect(device)
+    }
+    //endregion
+
+    //region Connection — Wi-Fi
+    private fun connectToWifiServer(server: UdpDiscoveryClient.ServerInfo) {
+        stopWifiScan()
+        binding.wifiScanningIndicator.visibility = View.VISIBLE
+        binding.tvWifiScanningText.text = getString(com.remotegamepad.R.string.wifi_connecting)
+
+        discoveryExecutor.execute {
+            wifiInputService.connect(server.ip, server.inputPort)
+            activeTransport = Transport.WIFI
+            runOnUiThread {
+                binding.wifiScanningIndicator.visibility = View.GONE
+                showGamepad()
+            }
+        }
     }
     //endregion
 
@@ -389,7 +505,8 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
         when (state) {
             is BluetoothService.State.Disconnected -> {
                 hideConnectingState()
-                if (currentScreen == Screen.GAMEPAD) {
+                if (currentScreen == Screen.GAMEPAD && activeTransport == Transport.BLUETOOTH) {
+                    activeTransport = Transport.NONE
                     showConnect()
                 }
                 Log.d(TAG, "State: Disconnected")
@@ -399,12 +516,14 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
             }
             is BluetoothService.State.Connected -> {
                 hideConnectingState()
+                activeTransport = Transport.BLUETOOTH
                 showGamepad()
                 Log.d(TAG, "State: Connected")
             }
             is BluetoothService.State.Error -> {
                 hideConnectingState()
-                if (currentScreen == Screen.GAMEPAD) {
+                if (currentScreen == Screen.GAMEPAD && activeTransport == Transport.BLUETOOTH) {
+                    activeTransport = Transport.NONE
                     showConnect()
                 }
                 Toast.makeText(this, getString(com.remotegamepad.R.string.connection_failed), Toast.LENGTH_SHORT).show()
@@ -457,6 +576,61 @@ class MainActivity : AppCompatActivity(), BluetoothService.Callback, GamepadView
                 itemView.setOnClickListener { onClick(device) }
             }
         }
+    }
+    //endregion
+
+    //region Wi-Fi Discovery
+    private fun startWifiDiscovery() {
+        if (isWifiScanning) return
+        isWifiScanning = true
+        binding.wifiScanningIndicator.visibility = View.VISIBLE
+        binding.tvWifiScanningText.text = getString(com.remotegamepad.R.string.wifi_scanning)
+        binding.btnWifiScan.text = getString(com.remotegamepad.R.string.wifi_stop_scan)
+        binding.wifiEmptyState.visibility = View.GONE
+        binding.wifiServerListScroll.visibility = View.GONE
+        binding.wifiServerList.removeAllViews()
+
+        discoveryExecutor.execute {
+            val servers = udpDiscovery.discover()
+            runOnUiThread {
+                isWifiScanning = false
+                binding.wifiScanningIndicator.visibility = View.GONE
+                binding.btnWifiScan.text = getString(com.remotegamepad.R.string.wifi_scan_again)
+
+                if (servers.isEmpty()) {
+                    binding.wifiEmptyState.visibility = View.VISIBLE
+                    binding.wifiServerListScroll.visibility = View.GONE
+                } else {
+                    binding.wifiEmptyState.visibility = View.GONE
+                    binding.wifiServerListScroll.visibility = View.VISIBLE
+                    binding.wifiServerList.removeAllViews()
+                    for (server in servers) {
+                        addWifiServerCard(server)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopWifiScan() {
+        isWifiScanning = false
+    }
+
+    private fun updateWifiEmptyState() {
+        val hasChildren = binding.wifiServerList.childCount > 0
+        binding.wifiEmptyState.visibility = if (hasChildren || isWifiScanning) View.GONE else View.VISIBLE
+        binding.wifiServerListScroll.visibility = if (hasChildren) View.VISIBLE else View.GONE
+    }
+
+    private fun addWifiServerCard(server: UdpDiscoveryClient.ServerInfo) {
+        val cardView = LayoutInflater.from(this)
+            .inflate(com.remotegamepad.R.layout.item_wifi_server, binding.wifiServerList, false)
+
+        cardView.findViewById<TextView>(com.remotegamepad.R.id.tvServerName).text = server.name
+        cardView.findViewById<TextView>(com.remotegamepad.R.id.tvServerIp).text = server.ip
+        cardView.setOnClickListener { connectToWifiServer(server) }
+
+        binding.wifiServerList.addView(cardView)
     }
     //endregion
 }

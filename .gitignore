@@ -55,4 +55,8 @@ htmlcov/
 *.tar.gz
 *.tar.bz2
 *.tar.xz
-*.tar.zst
+*.tar.zst.freebuff/
+Android/local.properties
+**/bin/
+**/obj/
+.freebuff/

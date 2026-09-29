@@ -22,7 +22,7 @@
     <string name="home_bluetooth_title">Bluetooth</string>
     <string name="home_bluetooth_subtitle">Connect via Bluetooth</string>
     <string name="home_wifi_title">Wi-Fi</string>
-    <string name="home_wifi_subtitle">Coming Soon</string>
+    <string name="home_wifi_subtitle">Connect via Wi-Fi</string>
 
     <!-- Bluetooth connector screen -->
     <string name="connect_title">Connect via Bluetooth</string>
@@ -38,4 +38,18 @@
     <string name="controller_style_title">Controller Style</string>
     <string name="style_xbox">Xbox</string>
     <string name="style_ps">PlayStation</string>
+
+    <!-- Wi-Fi connector screen -->
+    <string name="wifi_connect_title">Connect via Wi-Fi</string>
+    <string name="wifi_connect_subtitle">Select your PC on the network</string>
+    <string name="wifi_scanning">Scanning for PCs\u2026</string>
+    <string name="wifi_stop_scan">Stop scanning</string>
+    <string name="wifi_scan_again">Scan again</string>
+    <string name="wifi_no_servers_found">No PCs found</string>
+    <string name="wifi_no_servers_hint">Make sure your PC is running the RemoteGamepad server and is on the same Wi-Fi network.</string>
+    <string name="wifi_connecting">Connecting\u2026</string>
+    <string name="wifi_server_ip">%1$s</string>
+
+    <!-- Gameplay back guard -->
+    <string name="back_guard_hint">Swipe again to exit</string>
 </resources>

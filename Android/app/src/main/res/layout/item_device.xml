@@ -12,12 +12,24 @@
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground">
 
-    <ImageView
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:src="@drawable/ic_bluetooth_symbol"
-        android:layout_marginEnd="16dp"
-        android:importantForAccessibility="no"/>
+    <!-- Bluetooth icon in accent-tinted circle -->
+    <FrameLayout
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="14dp">
+
+        <View
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@color/accent_muted"/>
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_bluetooth_symbol"
+            android:importantForAccessibility="no"/>
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"
@@ -29,8 +41,10 @@
             android:id="@+id/tvDeviceName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/white"
-            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.01"
             android:text="Device Name"/>
 
         <TextView
@@ -39,7 +53,10 @@
             android:layout_height="wrap_content"
             android:text="Paired"
             android:textColor="@color/accent"
-            android:textSize="12sp"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.04"
+            android:layout_marginTop="3dp"
             android:visibility="gone"/>
     </LinearLayout>
 </LinearLayout>

@@ -4,224 +4,278 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/black">
+    android:background="@color/background">
 
-    <!-- ═══════════════════════════════════════════════════════════
-         HOME SCREEN — first thing the user sees
-         ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══ HOME SCREEN ═══ -->
     <FrameLayout
         android:id="@+id/layoutHome"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Settings icon — top-right corner -->
+        <!-- Settings icon — top-right -->
         <ImageButton
             android:id="@+id/btnControllerStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_gravity="top|end"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="12dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="16dp"
             android:src="@drawable/ic_settings"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/controller_style_title"
             android:scaleType="center"/>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:paddingStart="32dp"
-        android:paddingEnd="32dp">
-
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1"/>
-
-        <!-- App icon -->
-        <ImageView
-            android:layout_width="88dp"
-            android:layout_height="88dp"
-            android:src="@mipmap/ic_launcher"
-            android:layout_marginBottom="20dp"
-            android:importantForAccessibility="no"/>
-
-        <!-- App title -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textColor="@color/white"
-            android:textSize="30sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.02"
-            android:layout_marginBottom="8dp"/>
-
-        <!-- Subtitle -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/home_subtitle"
-            android:textColor="@color/text_secondary"
-            android:textSize="16sp"
-            android:layout_marginBottom="56dp"/>
-
-        <!-- ── Bluetooth card ── -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardBluetooth"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:foreground="?attr/selectableItemBackground"
-            app:cardCornerRadius="16dp"
-            app:cardBackgroundColor="@color/surface"
-            app:strokeColor="@color/accent"
-            app:strokeWidth="1dp"
-            app:cardElevation="0dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
 
+            <!-- ── Hero Section ── -->
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"/>
+
+            <!-- Ambient glow behind icon -->
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="28dp">
+
+                <!-- Soft blue glow -->
+                <View
+                    android:layout_width="140dp"
+                    android:layout_height="140dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_hero_glow"/>
+
+                <!-- App icon -->
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:layout_gravity="center"
+                    android:src="@mipmap/ic_launcher"
+                    android:importantForAccessibility="no"/>
+            </FrameLayout>
+
+            <!-- Title — weighted typography -->
             <LinearLayout
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="24dp"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
 
-                <ImageView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:src="@drawable/ic_bluetooth_symbol"
-                    android:layout_marginEnd="20dp"
-                    android:importantForAccessibility="no"/>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/home_bluetooth_title"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/home_bluetooth_subtitle"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp"
-                        android:layout_marginTop="2dp"/>
-                </LinearLayout>
-
-                <!-- Arrow indicator -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="›"
-                    android:textColor="@color/accent"
-                    android:textSize="28sp"/>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+                    android:text="Remote"
+                    android:textColor="@color/text_primary"
+                    android:textSize="30sp"
+                    android:fontFamily="sans-serif-light"
+                    android:letterSpacing="0.01"/>
 
-        <!-- ── Wi-Fi card (disabled / coming soon) ── -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardWifi"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:alpha="0.45"
-            app:cardCornerRadius="16dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardElevation="0dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="24dp"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:src="@drawable/ic_wifi_symbol"
-                    android:layout_marginEnd="20dp"
-                    android:importantForAccessibility="no"/>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/home_wifi_title"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/home_wifi_subtitle"
-                        android:textColor="@color/text_hint"
-                        android:textSize="14sp"
-                        android:layout_marginTop="2dp"/>
-                </LinearLayout>
-
-                <!-- Coming soon badge -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Soon"
-                    android:textColor="@color/text_hint"
-                    android:textSize="12sp"
+                    android:text="Gamepad"
+                    android:textColor="@color/text_primary"
+                    android:textSize="30sp"
                     android:textStyle="bold"
-                    android:background="@drawable/bg_badge"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"/>
+                    android:letterSpacing="0.01"/>
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="2"/>
-    </LinearLayout>
+            <!-- Subtitle -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/home_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="15sp"
+                android:layout_marginBottom="40dp"/>
+
+            <!-- ── Connection Cards ── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp">
+
+                <!-- Bluetooth Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardBluetooth"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    app:cardCornerRadius="20dp"
+                    app:cardBackgroundColor="@color/surface"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp"
+                    app:cardElevation="2dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:padding="20dp"
+                        android:gravity="center_vertical">
+
+                        <!-- Icon container -->
+                        <FrameLayout
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_marginEnd="16dp">
+
+                            <View
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="@drawable/bg_icon_container"/>
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_bluetooth_symbol"
+                                android:importantForAccessibility="no"/>
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/home_bluetooth_title"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/home_bluetooth_subtitle"
+                                android:textColor="@color/text_tertiary"
+                                android:textSize="13sp"
+                                android:layout_marginTop="2dp"/>
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="\u203A"
+                            android:textColor="@color/text_hint"
+                            android:textSize="26sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Wi-Fi Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardWifi"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    app:cardCornerRadius="20dp"
+                    app:cardBackgroundColor="@color/surface"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp"
+                    app:cardElevation="2dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:padding="20dp"
+                        android:gravity="center_vertical">
+
+                        <FrameLayout
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_marginEnd="16dp">
+
+                            <View
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="@drawable/bg_icon_container"/>
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_wifi_symbol"
+                                android:importantForAccessibility="no"/>
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/home_wifi_title"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold"/>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/home_wifi_subtitle"
+                                android:textColor="@color/text_tertiary"
+                                android:textSize="13sp"
+                                android:layout_marginTop="2dp"/>
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="\u203A"
+                            android:textColor="@color/text_hint"
+                            android:textSize="26sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1.5"/>
+        </LinearLayout>
     </FrameLayout>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         BLUETOOTH CONNECTOR — production UI
-         Hidden by default — shown when user taps Bluetooth card
-         ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══ BLUETOOTH CONNECTOR ═══ -->
     <LinearLayout
         android:id="@+id/layoutConnection"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="@color/black"
+        android:background="@color/background"
         android:visibility="gone">
 
-        <!-- ── Top App Bar ── -->
+        <!-- Top Bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingStart="4dp"
-            android:paddingEnd="16dp"
-            android:background="@color/surface">
+            android:paddingEnd="20dp"
+            android:background="@color/surface"
+            android:elevation="1dp">
 
             <ImageButton
                 android:id="@+id/btnBack"
@@ -237,35 +291,30 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/connect_title"
-                android:textColor="@color/white"
-                android:textSize="20sp"
+                android:textColor="@color/text_primary"
+                android:textSize="19sp"
                 android:textStyle="bold"/>
         </LinearLayout>
 
-        <!-- Thin divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/surface_light"/>
-
-        <!-- ── Content area ── -->
+        <!-- Content -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp">
 
-            <!-- Subtitle -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/connect_subtitle"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/text_tertiary"
                 android:textSize="14sp"
                 android:layout_marginBottom="20dp"/>
 
-            <!-- Connecting indicator (hidden by default) -->
+            <!-- Connecting indicator -->
             <LinearLayout
                 android:id="@+id/connectingIndicator"
                 android:layout_width="match_parent"
@@ -273,7 +322,9 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:visibility="gone"
-                android:layout_marginBottom="16dp">
+                android:background="@drawable/bg_status_card"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp">
 
                 <ProgressBar
                     android:layout_width="20dp"
@@ -290,7 +341,7 @@
                     android:textSize="14sp"/>
             </LinearLayout>
 
-            <!-- Empty state (hidden by default) -->
+            <!-- Empty state -->
             <LinearLayout
                 android:id="@+id/emptyState"
                 android:layout_width="match_parent"
@@ -300,19 +351,19 @@
                 android:visibility="gone">
 
                 <ImageView
-                    android:layout_width="64dp"
-                    android:layout_height="64dp"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
                     android:src="@drawable/ic_bluetooth_symbol"
                     android:layout_marginBottom="20dp"
-                    android:alpha="0.35"
+                    android:alpha="0.3"
                     android:importantForAccessibility="no"/>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/no_devices_found"
-                    android:textColor="@color/white"
-                    android:textSize="18sp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="17sp"
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp"/>
 
@@ -320,14 +371,15 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/no_devices_hint"
-                    android:textColor="@color/text_secondary"
+                    android:textColor="@color/text_tertiary"
                     android:textSize="14sp"
                     android:gravity="center"
-                    android:paddingStart="32dp"
-                    android:paddingEnd="32dp"/>
+                    android:lineSpacingExtra="4dp"
+                    android:paddingStart="40dp"
+                    android:paddingEnd="40dp"/>
             </LinearLayout>
 
-            <!-- Device lists (hidden by default, shown when devices exist) -->
+            <!-- Device lists -->
             <ScrollView
                 android:id="@+id/deviceListScroll"
                 android:layout_width="match_parent"
@@ -341,17 +393,16 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
-                    <!-- Paired section -->
                     <TextView
                         android:id="@+id/pairedSectionHeader"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/section_paired"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
+                        android:textColor="@color/text_tertiary"
+                        android:textSize="11sp"
                         android:textStyle="bold"
-                        android:letterSpacing="0.05"
-                        android:layout_marginBottom="8dp"
+                        android:letterSpacing="0.08"
+                        android:layout_marginBottom="10dp"
                         android:visibility="gone"/>
 
                     <androidx.recyclerview.widget.RecyclerView
@@ -359,19 +410,18 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"
-                        android:layout_marginBottom="16dp"/>
+                        android:layout_marginBottom="20dp"/>
 
-                    <!-- Discovered section -->
                     <TextView
                         android:id="@+id/discoveredSectionHeader"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/section_available"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
+                        android:textColor="@color/text_tertiary"
+                        android:textSize="11sp"
                         android:textStyle="bold"
-                        android:letterSpacing="0.05"
-                        android:layout_marginBottom="8dp"
+                        android:letterSpacing="0.08"
+                        android:layout_marginBottom="10dp"
                         android:visibility="gone"/>
 
                     <androidx.recyclerview.widget.RecyclerView
@@ -383,30 +433,184 @@
             </ScrollView>
         </LinearLayout>
 
-        <!-- ── Scan button ── -->
-        <com.google.android.material.button.MaterialButton
+        <!-- Scan button -->
+        <TextView
             android:id="@+id/btnScan"
             android:layout_width="match_parent"
             android:layout_height="52dp"
             android:layout_marginStart="20dp"
             android:layout_marginEnd="20dp"
             android:layout_marginBottom="20dp"
+            android:background="@drawable/bg_scan_button"
             android:text="@string/btn_scan"
             android:textColor="@color/white"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold"
-            app:backgroundTint="@color/accent"
-            app:cornerRadius="12dp"
-            style="@style/Widget.Material3.Button"/>
+            android:letterSpacing="0.02"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"/>
     </LinearLayout>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         GAMEPAD OVERLAY (existing — untouched)
-         ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══ WI-FI CONNECTOR ═══ -->
+    <LinearLayout
+        android:id="@+id/layoutWifi"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/background"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp"
+            android:paddingEnd="20dp"
+            android:background="@color/surface"
+            android:elevation="1dp">
+
+            <ImageButton
+                android:id="@+id/btnWifiBack"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_arrow_back"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/wifi_connect_title"
+                android:scaleType="center"/>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/wifi_connect_title"
+                android:textColor="@color/text_primary"
+                android:textSize="19sp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/wifi_connect_subtitle"
+                android:textColor="@color/text_tertiary"
+                android:textSize="14sp"
+                android:layout_marginBottom="20dp"/>
+
+            <!-- Scanning indicator -->
+            <LinearLayout
+                android:id="@+id/wifiScanningIndicator"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:background="@drawable/bg_status_card"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp">
+
+                <ProgressBar
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="12dp"
+                    style="?android:attr/progressBarStyleSmall"/>
+
+                <TextView
+                    android:id="@+id/tvWifiScanningText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/wifi_scanning"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Empty state -->
+            <LinearLayout
+                android:id="@+id/wifiEmptyState"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:src="@drawable/ic_wifi_symbol"
+                    android:layout_marginBottom="20dp"
+                    android:alpha="0.3"
+                    android:importantForAccessibility="no"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/wifi_no_servers_found"
+                    android:textColor="@color/text_primary"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/wifi_no_servers_hint"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="14sp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="4dp"
+                    android:paddingStart="40dp"
+                    android:paddingEnd="40dp"/>
+            </LinearLayout>
+
+            <!-- Server list -->
+            <ScrollView
+                android:id="@+id/wifiServerListScroll"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                android:scrollbarThumbVertical="@color/text_hint"
+                android:fadeScrollbars="false">
+
+                <LinearLayout
+                    android:id="@+id/wifiServerList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"/>
+            </ScrollView>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/btnWifiScan"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/bg_scan_button"
+            android:text="@string/wifi_scan_again"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"/>
+    </LinearLayout>
+
+    <!-- ═══ GAMEPAD OVERLAY ═══ -->
     <com.remotegamepad.ui.GamepadView
         android:id="@+id/gamepadView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"/>
-
 </FrameLayout>

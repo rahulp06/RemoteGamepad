@@ -49,7 +49,7 @@ public static class InputParser
     );
 
     /// <summary>
-    /// Parse a raw protocol message. Returns null if not an INPUT message or parse fails.
+    /// Parse a raw protocol message (TCP/Bluetooth). Returns null if not an INPUT message or parse fails.
     /// </summary>
     public static ControllerState? Parse(string message)
     {
@@ -57,6 +57,20 @@ public static class InputParser
             return null;
 
         var json = message[(Protocol.MSG_INPUT.Length + 1)..];
+        return ParseJson(json);
+    }
+
+    /// <summary>
+    /// Parse a raw JSON payload from a UDP datagram (no message-type prefix).
+    /// Returns null if parsing fails.
+    /// </summary>
+    public static ControllerState? ParseUdp(string json)
+    {
+        return ParseJson(json);
+    }
+
+    private static ControllerState? ParseJson(string json)
+    {
         try
         {
             var dto = JsonSerializer.Deserialize<GamepadInputDto>(json);

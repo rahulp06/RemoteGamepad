@@ -15,6 +15,7 @@ public class VirtualController : IDisposable
     private ViGEmClient? _client;
     private IXbox360Controller? _controller;
     private bool _available;
+    private readonly object _sync = new();
 
     public bool IsAvailable => _available;
 
@@ -48,38 +49,41 @@ public class VirtualController : IDisposable
     {
         if (!_available || _controller == null) return;
 
-        // Buttons
-        _controller.SetButtonState(Xbox360Button.A, state.A);
-        _controller.SetButtonState(Xbox360Button.B, state.B);
-        _controller.SetButtonState(Xbox360Button.X, state.X);
-        _controller.SetButtonState(Xbox360Button.Y, state.Y);
+        lock (_sync)
+        {
+            // Buttons
+            _controller.SetButtonState(Xbox360Button.A, state.A);
+            _controller.SetButtonState(Xbox360Button.B, state.B);
+            _controller.SetButtonState(Xbox360Button.X, state.X);
+            _controller.SetButtonState(Xbox360Button.Y, state.Y);
 
-        _controller.SetButtonState(Xbox360Button.LeftShoulder, state.Lb);
-        _controller.SetButtonState(Xbox360Button.RightShoulder, state.Rb);
+            _controller.SetButtonState(Xbox360Button.LeftShoulder, state.Lb);
+            _controller.SetButtonState(Xbox360Button.RightShoulder, state.Rb);
 
-        _controller.SetButtonState(Xbox360Button.Start, state.Start);
-        _controller.SetButtonState(Xbox360Button.Back, state.Select);
+            _controller.SetButtonState(Xbox360Button.Start, state.Start);
+            _controller.SetButtonState(Xbox360Button.Back, state.Select);
 
-        _controller.SetButtonState(Xbox360Button.LeftThumb, state.L3);
-        _controller.SetButtonState(Xbox360Button.RightThumb, state.R3);
+            _controller.SetButtonState(Xbox360Button.LeftThumb, state.L3);
+            _controller.SetButtonState(Xbox360Button.RightThumb, state.R3);
 
-        // D-pad
-        _controller.SetButtonState(Xbox360Button.Up, state.DUp);
-        _controller.SetButtonState(Xbox360Button.Down, state.DDown);
-        _controller.SetButtonState(Xbox360Button.Left, state.DLeft);
-        _controller.SetButtonState(Xbox360Button.Right, state.DRight);
+            // D-pad
+            _controller.SetButtonState(Xbox360Button.Up, state.DUp);
+            _controller.SetButtonState(Xbox360Button.Down, state.DDown);
+            _controller.SetButtonState(Xbox360Button.Left, state.DLeft);
+            _controller.SetButtonState(Xbox360Button.Right, state.DRight);
 
-        // Axes: float [-1, 1] → short [-32768, 32767]
-        _controller.SetAxisValue(Xbox360Axis.LeftThumbX, FloatToShort(state.Lx));
-        _controller.SetAxisValue(Xbox360Axis.LeftThumbY, FloatToShort(state.Ly));
-        _controller.SetAxisValue(Xbox360Axis.RightThumbX, FloatToShort(state.Rx));
-        _controller.SetAxisValue(Xbox360Axis.RightThumbY, FloatToShort(state.Ry));
+            // Axes: float [-1, 1] → short [-32768, 32767]
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbX, FloatToShort(state.Lx));
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbY, FloatToShort(state.Ly));
+            _controller.SetAxisValue(Xbox360Axis.RightThumbX, FloatToShort(state.Rx));
+            _controller.SetAxisValue(Xbox360Axis.RightThumbY, FloatToShort(state.Ry));
 
-        // Triggers: float [0, 1] → byte [0, 255]
-        _controller.SetSliderValue(Xbox360Slider.LeftTrigger, FloatToByte(state.Lt));
-        _controller.SetSliderValue(Xbox360Slider.RightTrigger, FloatToByte(state.Rt));
+            // Triggers: float [0, 1] → byte [0, 255]
+            _controller.SetSliderValue(Xbox360Slider.LeftTrigger, FloatToByte(state.Lt));
+            _controller.SetSliderValue(Xbox360Slider.RightTrigger, FloatToByte(state.Rt));
 
-        _controller.SubmitReport();
+            _controller.SubmitReport();
+        }
     }
 
     /// <summary>
@@ -89,37 +93,43 @@ public class VirtualController : IDisposable
     {
         if (!_available || _controller == null) return;
 
-        _controller.SetButtonState(Xbox360Button.A, false);
-        _controller.SetButtonState(Xbox360Button.B, false);
-        _controller.SetButtonState(Xbox360Button.X, false);
-        _controller.SetButtonState(Xbox360Button.Y, false);
-        _controller.SetButtonState(Xbox360Button.LeftShoulder, false);
-        _controller.SetButtonState(Xbox360Button.RightShoulder, false);
-        _controller.SetButtonState(Xbox360Button.Start, false);
-        _controller.SetButtonState(Xbox360Button.Back, false);
-        _controller.SetButtonState(Xbox360Button.LeftThumb, false);
-        _controller.SetButtonState(Xbox360Button.RightThumb, false);
-        _controller.SetButtonState(Xbox360Button.Up, false);
-        _controller.SetButtonState(Xbox360Button.Down, false);
-        _controller.SetButtonState(Xbox360Button.Left, false);
-        _controller.SetButtonState(Xbox360Button.Right, false);
+        lock (_sync)
+        {
+            _controller.SetButtonState(Xbox360Button.A, false);
+            _controller.SetButtonState(Xbox360Button.B, false);
+            _controller.SetButtonState(Xbox360Button.X, false);
+            _controller.SetButtonState(Xbox360Button.Y, false);
+            _controller.SetButtonState(Xbox360Button.LeftShoulder, false);
+            _controller.SetButtonState(Xbox360Button.RightShoulder, false);
+            _controller.SetButtonState(Xbox360Button.Start, false);
+            _controller.SetButtonState(Xbox360Button.Back, false);
+            _controller.SetButtonState(Xbox360Button.LeftThumb, false);
+            _controller.SetButtonState(Xbox360Button.RightThumb, false);
+            _controller.SetButtonState(Xbox360Button.Up, false);
+            _controller.SetButtonState(Xbox360Button.Down, false);
+            _controller.SetButtonState(Xbox360Button.Left, false);
+            _controller.SetButtonState(Xbox360Button.Right, false);
 
-        _controller.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
-        _controller.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
-        _controller.SetAxisValue(Xbox360Axis.RightThumbX, 0);
-        _controller.SetAxisValue(Xbox360Axis.RightThumbY, 0);
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbX, 0);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbY, 0);
 
-        _controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
-        _controller.SetSliderValue(Xbox360Slider.RightTrigger, 0);
+            _controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
+            _controller.SetSliderValue(Xbox360Slider.RightTrigger, 0);
 
-        _controller.SubmitReport();
+            _controller.SubmitReport();
+        }
     }
 
     public void Dispose()
     {
-        Reset();
-        _controller?.Disconnect();
-        _client?.Dispose();
+        lock (_sync)
+        {
+            Reset();
+            _controller?.Disconnect();
+            _client?.Dispose();
+        }
     }
 
     private static short FloatToShort(float v)

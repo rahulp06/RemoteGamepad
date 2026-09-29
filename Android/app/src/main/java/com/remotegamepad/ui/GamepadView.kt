@@ -1,611 +1,528 @@
 package com.remotegamepad.ui
 
-import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.Typeface
+import android.graphics.Rect
+import android.os.Build
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import com.remotegamepad.bluetooth.GamepadState
 
-/**
- * Gamepad controller view — monochrome GeForce/SHIELD "Far Cry 5" style overlay.
- *
- * Layout (landscape only):
- *   Top-left:    LT  LB        (circular pair, outer→inner)
- *   Top-right:   RB  RT        (circular pair, inner→outer)
- *   Top-center:  VIEW  HOME  MENU   (pill, circle, pill)
- *   Left:        D-pad — 4 separate circular buttons (▲ ◀ ▶ ▼), above left stick
- *   Right:       ABXY — 4 separate monochrome circular buttons (diamond), above right stick
- *   Lower-left:  Large analog stick with concentric rings; L3 is a separate circle near the edge
- *   Lower-right: Mirrored right stick; R3 is a separate circle near the edge
- *
- * GEOMETRY MODEL — normalized design space, not per-device math:
- *
- * All control positions/sizes are authored once in a fixed reference
- * design canvas (DESIGN_W x DESIGN_H, ~16:9, matching the reference
- * screenshot this layout is based on). onSizeChanged() then computes a
- * single uniform scale factor — min(actualWidth / DESIGN_W,
- * actualHeight / DESIGN_H) — and applies that same factor to every
- * position, radius, gap, stroke width and text size. The scaled design
- * is centered in the real viewport, so a wider-than-16:9 phone gets
- * extra side margin and a narrower one gets uniformly scaled down —
- * either way circles stay circles and the composition never distorts
- * or reflows per aspect ratio. This view is intentionally landscape-
- * only; there is no portrait variant of this geometry.
- *
- * Protocol / state / listener contract is untouched: this view only
- * changes what is drawn and where touches are hit-tested. The HOME
- * button is drawn and responds to touch for visual feedback only —
- * GamepadState has no field for it, so it never emits a state change.
- * (Wiring HOME into the real protocol would require adding a `home`
- * field to GamepadState/Protocol, which is out of scope here.)
- */
 class GamepadView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
+    context: android.content.Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    interface Listener {
-        fun onStateChanged(state: GamepadState)
-    }
-
+    interface Listener { fun onStateChanged(state: GamepadState) }
     var listener: Listener? = null
-
-    /** Visual controller style — only affects labels, not geometry or protocol. */
     enum class ControllerStyle { XBOX, PS }
-
-    /** Current controller label style. Setting this invalidates the view. */
     var controllerStyle = ControllerStyle.XBOX
         set(value) { field = value; invalidate() }
 
     companion object {
-        // Reference design canvas — a fixed authoring space, NOT a
-        // device resolution. Matches the reference image's ~16:9
-        // composition. Every position/size below is expressed in this
-        // space and uniformly scaled onto the real viewport at layout
-        // time (see onSizeChanged).
-        private const val DESIGN_W = 1536f
-        private const val DESIGN_H = 864f
-        private const val DESIGN_MIN = 864f // min(DESIGN_W, DESIGN_H)
-
-        // Control centers — pushed toward the four corners/edges so the
-        // composition spans the full canvas instead of sitting in a
-        // smaller cluster. Every pairing below was checked for
-        // circle-circle clearance against its neighbors at the sizes
-        // defined in onSizeChanged (shR/dR/lsR/etc.), not just eyeballed.
-        // LS/RS are the approved, fixed joystick anchors — everything
-        // else (shoulders, D-pad, ABXY, L3/R3) is positioned around them.
-        //
-        // All four constants below are DISTANCES FROM THE NEAREST SCREEN
-        // EDGE (left edge for LT/D-pad/L3, right edge for their RB/RT/
-        // ABXY/R3 mirrors — see pxL()/pxR() in onSizeChanged). This
-        // replaced plain design-space X coordinates: the old scheme
-        // (offsetX + designX*scale) centers a fixed 1536x864 canvas and
-        // letterboxes it on any phone wider than 16:9 — which is most
-        // phones — so these outer controls sat inboard of the true screen
-        // edges with unused space beyond them, even though they were
-        // already almost touching the edge of the *design* canvas. The
-        // sticks/VIEW/HOME/MENU still use the old centered scheme
-        // (appropriate for center controls, and required to keep the
-        // sticks' pixel position unchanged) — only these edge-hugging
-        // clusters were switched to anchor off the real edge.
-        //
-        // Each constant is (control radius + a ~24-unit visual/touch
-        // margin), NOT just the radius alone — the margin is what keeps
-        // the control's own edge off the true screen edge. LT and D-pad
-        // were bumped up for this (68→88, 180→200); L3 (70) already
-        // landed on almost exactly this margin by coincidence, so it's
-        // unchanged. All margins verified in onSizeChanged below.
-        // LT/LB (and their RB/RT mirrors) sit lower and further apart
-        // than earlier passes (Y 72->115, LB_X 245->300) to read as a
-        // distinct shoulder row below VIEW/HOME/MENU, matching the
-        // reference's layered top rows instead of one flat top edge.
-        // D-pad/ABXY were left at their existing position -- they are
-        // already at the geometric ceiling against the fixed stick (the
-        // D-pad "up" button clears the stick with near-zero margin at
-        // its current Y), so they can't move closer without shrinking
-        // button radius, which is out of scope here. LB_X=300/Y=115 is
-        // the binding pair -- LB vs. the D-pad "up" button clears by
-        // ~23 units, tighter than other neighboring pairs but positive;
-        // re-verify this pair first if these constants move again.
-        private const val LT_X = 88f;    private const val LT_Y = 115f
-        private const val LB_X = 300f;   private const val LB_Y = 115f
-
+        // ═══ GEOMETRY ═══
+        private const val DW = 1536f; private const val DH = 864f; private const val DM = 864f
+        private const val LT_X = 120f; private const val LT_Y = 115f
+        private const val LB_X = 332f; private const val LB_Y = 115f
         private const val VIEW_X = 616f; private const val VIEW_Y = 65f
         private const val HOME_X = 768f; private const val HOME_Y = 65f
         private const val MENU_X = 920f; private const val MENU_Y = 65f
+        private const val DPAD_CX = 235f; private const val DPAD_CY = 380f
+        private const val LS_CX = 400f; private const val LS_CY = 670f
+        private const val RS_CX = 1100f; private const val RS_CY = 670f
+        private const val L3_X = 105f; private const val L3_Y = 790f
 
-        private const val DPAD_CX = 200f;  private const val DPAD_CY = 380f
+        // ═══ PALETTE ═══
+        private const val BG_TOP = "#EEF0F8"; private const val BG_BOT = "#E0E4EE"
+        private const val SURFACE = "#F5F6FA"; private const val SURFACE_H = "#FAFBFD"
+        private const val SURFACE_L = "#E4E6F0"; private const val SURFACE_P = "#DDE0EA"
+        private const val WELL = "#D6DAE6"; private const val WELL_DEEP = "#C4C8D6"
+        private const val WELL_EDGE = "#B8BCC8"
+        private const val RIM = "#B0B4C2"; private const val RIM_LIGHT = "#D0D4DE"
+        private const val CAP = "#A0A8B8"; private const val CAP_P = "#848C9C"
+        private const val ACCENT = "#4A9EFF"; private const val ACCENT_DIM = "#224A9EFF"
+        private const val TXT = "#292D36"; private const val TXT_M = "#3A3F4A"
+        private const val TXT_D = "#3A3F4A"; private const val TXT_B = "#3A3F4A"
 
-        // Fixed anchors — approved joystick position. Do not move.
-        private const val LS_CX = 400f;  private const val LS_CY = 670f
-        private const val RS_CX = 1136f; private const val RS_CY = 670f
+        // Color parsing cache
+        private val cBgTop by lazy { Color.parseColor(BG_TOP) }
+        private val cBgBot by lazy { Color.parseColor(BG_BOT) }
+        private val cSurf by lazy { Color.parseColor(SURFACE) }
+        private val cSurfH by lazy { Color.parseColor(SURFACE_H) }
+        private val cSurfL by lazy { Color.parseColor(SURFACE_L) }
+        private val cWell by lazy { Color.parseColor(WELL) }
+        private val cWellDeep by lazy { Color.parseColor(WELL_DEEP) }
+        private val cWellEdge by lazy { Color.parseColor(WELL_EDGE) }
+        private val cRim by lazy { Color.parseColor(RIM) }
+        private val cCap by lazy { Color.parseColor(CAP) }
+        private val cCapP by lazy { Color.parseColor(CAP_P) }
+        private val cAccent by lazy { Color.parseColor(ACCENT) }
+        private val cAccentDim by lazy { Color.parseColor(ACCENT_DIM) }
+        private val cShadow by lazy { Color.parseColor("#20000000") }
+        private val cShadowS by lazy { Color.parseColor("#14000000") }
+        private val cShadowI by lazy { Color.parseColor("#10000000") }
+        private val cInset by lazy { Color.parseColor("#18000000") }
+        private val cInsetPill by lazy { Color.parseColor("#15000000") }
 
-        private const val L3_X = 70f;    private const val L3_Y = 790f
+        // Face button colors
+        private val cY by lazy { Color.parseColor("#E8C840") }
+        private val cX by lazy { Color.parseColor("#5A9AE8") }
+        private val cB by lazy { Color.parseColor("#E87070") }
+        private val cA by lazy { Color.parseColor("#60C870") }
     }
 
-    // ── Paints ──
-    private val paintClear = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#000000")
-        style = Paint.Style.FILL
+    // ═══ PRE-ALLOCATED PAINTS — no on-draw allocations ═══
+    private val pBg = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val pSurf = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val pWellBase = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val pWellRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val pWellInner = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val pCap = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val pCapRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val pCapHL = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL; alpha = 55 }
+
+    // Shadows
+    private val pShadowDeep = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = cShadow; style = Paint.Style.FILL
+        maskFilter = android.graphics.BlurMaskFilter(14f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    private val pShadowMed = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = cShadowS; style = Paint.Style.FILL
+        maskFilter = android.graphics.BlurMaskFilter(8f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    private val pShadowSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = cShadowI; style = Paint.Style.FILL
+        maskFilter = android.graphics.BlurMaskFilter(4f, android.graphics.BlurMaskFilter.Blur.NORMAL)
     }
 
-    // Shared monochrome round-button style, used for LT/LB/RB/RT, D-pad,
-    // ABXY, L3/R3 and the HOME button — thin light-gray outline, dark
-    // translucent interior, matching the reference overlay.
-    private val paintRound = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#161616")
-        style = Paint.Style.FILL
-        alpha = 150
+    // Highlights
+    private val pHLSoft = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL; alpha = 20 }
+    private val pHLTop = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL; alpha = 30 }
+
+    // Accent
+    private val pGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = cAccentDim; style = Paint.Style.FILL }
+    private val pGlowRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = cAccent; style = Paint.Style.STROKE }
+
+    // Pressed inset
+    private val pInset = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = cInset; style = Paint.Style.FILL
+        maskFilter = android.graphics.BlurMaskFilter(3f, android.graphics.BlurMaskFilter.Blur.NORMAL)
     }
 
-    private val paintRoundPressed = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#3A3A3A")
-        style = Paint.Style.FILL
-        alpha = 200
-    }
+    // Reusable rim paints (colors updated per draw call)
+    private val pRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.5f }
+    private val pRimThin = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.2f }
+    private val pColorRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2f }
+    private val pHLArc = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.STROKE; alpha = 35 }
 
-    private val paintRoundStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#9A9A9A")
-        style = Paint.Style.STROKE
-    }
+    // Dpad dimple
+    private val pDimple = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = cWellDeep; style = Paint.Style.FILL; alpha = 55 }
 
-    private val paintStickRingOuter = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#8A8A8A")
-        style = Paint.Style.STROKE
-    }
+    // Text paints — dark, bold, readable
+    private val pTxtFace = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(TXT); textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+    private val pTxtPs = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(TXT); textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+    private val pTxtM = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(TXT_M); textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+    private val pTxtD = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(TXT_D); textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+    private val pTxtPill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(TXT_B); textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
 
-    private val paintStickRingInner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#5A5A5A")
-        style = Paint.Style.STROKE
-    }
-
-    private val paintStickBase = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#141414")
-        style = Paint.Style.FILL
-        alpha = 160
-    }
-
-    private val paintStickCap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#B0B0B0")
-        style = Paint.Style.FILL
-    }
-
-    private val paintStickCapPressed = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E0E0E0")
-        style = Paint.Style.FILL
-    }
-
-    private val paintTextLight = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E8E8E8")
-        textAlign = Paint.Align.CENTER
-    }
-
-    // Larger/bolder paint for PlayStation face-button symbols (△ □ ○ ✖)
-    private val paintPsSymbol = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E8E8E8")
-        textAlign = Paint.Align.CENTER
-    }
-
-    private val paintTextMuted = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#AAAAAA")
-        textAlign = Paint.Align.CENTER
-    }
-
-    // ── State ──
+    // ═══ STATE — UNCHANGED ═══
     private var state = GamepadState()
-    private val pointerMap = mutableMapOf<Int, String>()
+    private val pMap = mutableMapOf<Int, String>()
+    private var homeP = false
 
-    // Purely local visual feedback for HOME — never touches GamepadState.
-    private var homePressed = false
+    // ═══ GEOMETRY — UNCHANGED ═══
+    private var vw = 0f; private var vh = 0f; private var sc = 0f
+    private var lsCx = 0f; private var lsCy = 0f; private var lsR = 0f
+    private var lsK = 0f; private var lsKx = 0f; private var lsKy = 0f
+    private var rsCx = 0f; private var rsCy = 0f; private var rsR = 0f
+    private var rsK = 0f; private var rsKx = 0f; private var rsKy = 0f
+    private val dR = mutableMapOf<String, RectF>()
+    private val aR = mutableMapOf<String, RectF>()
+    private val sR = mutableMapOf<String, RectF>()
+    private val pR = mutableMapOf<String, RectF>()
+    private val hR = RectF(); private val l3 = RectF(); private val r3 = RectF()
+    private var dCx = 0f; private var dCy = 0f; private var dArm = 0f
 
-    // ── Geometry ──
-    // Raw viewport size and the uniform design→viewport scale/offset
-    // computed each time onSizeChanged runs. Every control rect below
-    // is derived from these plus the DESIGN_* constants above.
-    private var w = 0f
-    private var h = 0f
-    private var designScale = 0f
-
-    // Left stick
-    private var lsCx = 0f
-    private var lsCy = 0f
-    private var lsR = 0f
-    private var lsKnobR = 0f
-    private var lsKnobX = 0f
-    private var lsKnobY = 0f
-
-    // Right stick
-    private var rsCx = 0f
-    private var rsCy = 0f
-    private var rsR = 0f
-    private var rsKnobR = 0f
-    private var rsKnobX = 0f
-    private var rsKnobY = 0f
-
-    // D-pad — 4 separate circles (up, down, left, right)
-    private val dpadRects = mutableMapOf<String, RectF>()
-
-    // ABXY — 4 separate circles
-    private val abxyRects = mutableMapOf<String, RectF>()
-
-    // Top-corner circular buttons: lt, lb, rb, rt
-    private val roundRects = mutableMapOf<String, RectF>()
-
-    // Top-center: select (VIEW) / start (MENU) pills, home circle
-    private val pillRects = mutableMapOf<String, RectF>()
-    private val homeRect = RectF()
-
-    // Lower-corner L3 / R3
-    private val l3Rect = RectF()
-    private val r3Rect = RectF()
+    // Stroke widths (scaled once)
+    private var swRim = 0f; private var swRimThin = 0f; private var swWellRim = 0f
+    private var swWellInner = 0f; private var swCapRim = 0f; private var swGlowRing = 0f
+    private var swHLArc = 0f
 
     override fun onSizeChanged(width: Int, height: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(width, height, oldw, oldh)
-        w = width.toFloat()
-        h = height.toFloat()
+        vw = width.toFloat(); vh = height.toFloat()
+        val s = kotlin.math.min(vw / DW, vh / DH); sc = s
+        val oX = (vw - DW * s) / 2f; val oY = (vh - DH * s) / 2f
+        fun px(x: Float) = oX + x * s
+        fun py(y: Float) = oY + y * s
+        fun ps(v: Float) = v * s
+        fun pxL(d: Float) = d * s
+        fun pxR(d: Float) = vw - d * s
 
-        // Uniform scale: fit the whole DESIGN_W x DESIGN_H composition
-        // inside the real viewport without ever stretching it — the
-        // tighter of the two axis ratios wins, and the other axis is
-        // centered with leftover space as margin. This is what keeps
-        // circles circular and the relative layout identical across
-        // aspect ratios/DPIs/resolutions, instead of recomputing each
-        // control independently from width/height percentages.
-        val scale = kotlin.math.min(w / DESIGN_W, h / DESIGN_H)
-        designScale = scale
-        val offsetX = (w - DESIGN_W * scale) / 2f
-        val offsetY = (h - DESIGN_H * scale) / 2f
+        pTxtFace.textSize = ps(DM * 0.044f)
+        pTxtPs.textSize = ps(DM * 0.044f * 1.3f)
+        pTxtM.textSize = ps(DM * 0.038f)
+        pTxtD.textSize = ps(DM * 0.032f)
+        pTxtPill.textSize = ps(DM * 0.030f)
 
-        fun px(designX: Float) = offsetX + designX * scale
-        fun py(designY: Float) = offsetY + designY * scale
-        fun ps(designSize: Float) = designSize * scale
+        swGlowRing = ps(DM * 0.005f); pGlowRing.strokeWidth = swGlowRing
+        swWellRim = ps(DM * 0.004f); pWellRim.strokeWidth = swWellRim
+        swWellInner = ps(DM * 0.003f); pWellInner.strokeWidth = swWellInner
+        swCapRim = ps(DM * 0.003f); pCapRim.strokeWidth = swCapRim
+        swRim = ps(DM * 0.002f); pRim.strokeWidth = swRim
+        swRimThin = ps(DM * 0.0015f); pRimThin.strokeWidth = swRimThin
+        swHLArc = ps(DM * 0.003f); pHLArc.strokeWidth = swHLArc
 
-        // True-edge anchors for the outer control clusters (shoulders,
-        // D-pad/ABXY, L3/R3): measured from the real view edge (x=0 or
-        // x=w), NOT from the letterboxed design canvas. This is what lets
-        // those controls actually reach the physical screen edge on
-        // phones wider than the 16:9 design canvas, instead of stopping
-        // at the canvas's letterboxed edge with unused space beyond it.
-        fun pxL(edgeDist: Float) = edgeDist * scale
-        fun pxR(edgeDist: Float) = w - edgeDist * scale
+        pBg.shader = LinearGradient(0f, 0f, 0f, vh,
+            intArrayOf(cBgTop, cBgBot),
+            floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
 
-        // ── Text / stroke scaling (all driven by the same scale factor) ──
-        paintTextLight.textSize = ps(DESIGN_MIN * 0.032f)
-        paintPsSymbol.textSize = ps(DESIGN_MIN * 0.032f * 1.35f)
-        paintTextMuted.textSize = ps(DESIGN_MIN * 0.028f)
+        val shR = ps(DM * 0.074f); sR.clear()
+        sR["lt"] = mR(pxL(LT_X), py(LT_Y), shR); sR["lb"] = mR(pxL(LB_X), py(LB_Y), shR)
+        sR["rb"] = mR(pxR(LB_X), py(LB_Y), shR); sR["rt"] = mR(pxR(LT_X), py(LT_Y), shR)
 
-        paintStickRingOuter.strokeWidth = ps(DESIGN_MIN * 0.006f)
-        paintStickRingInner.strokeWidth = ps(DESIGN_MIN * 0.004f)
-        paintRoundStroke.strokeWidth = ps(DESIGN_MIN * 0.004f)
+        val pillW = ps(DW * 0.104f); val pillH = ps(DM * 0.069f); val homR = ps(DM * 0.053f)
+        hR.set(px(HOME_X) - homR, py(HOME_Y) - homR, px(HOME_X) + homR, py(HOME_Y) + homR)
+        pR.clear()
+        pR["select"] = RectF(px(VIEW_X) - pillW / 2f, py(VIEW_Y) - pillH / 2f, px(VIEW_X) + pillW / 2f, py(VIEW_Y) + pillH / 2f)
+        pR["start"] = RectF(px(MENU_X) - pillW / 2f, py(MENU_Y) - pillH / 2f, px(MENU_X) + pillW / 2f, py(MENU_Y) + pillH / 2f)
 
-        // ── Top corners: LT/LB pair (left), RB/RT pair (right) ──
-        // RB/RT are LB/LT's mirror, anchored from the right edge via
-        // pxR() — same distances, same Y, so the pair is always
-        // perfectly symmetric regardless of aspect ratio.
-        val shR = ps(DESIGN_MIN * 0.074f)
+        lsR = ps(DM * 0.179f); lsK = lsR * 0.50f; lsCx = px(LS_CX); lsCy = py(LS_CY); lsKx = lsCx; lsKy = lsCy
+        rsR = ps(DM * 0.179f); rsK = rsR * 0.50f; rsCx = px(RS_CX); rsCy = py(RS_CY); rsKx = rsCx; rsKy = rsCy
 
-        roundRects.clear()
-        roundRects["lt"] = makeRect(pxL(LT_X), py(LT_Y), shR)
-        roundRects["lb"] = makeRect(pxL(LB_X), py(LB_Y), shR)
-        roundRects["rb"] = makeRect(pxR(LB_X), py(LB_Y), shR)
-        roundRects["rt"] = makeRect(pxR(LT_X), py(LT_Y), shR)
+        dCx = pxL(DPAD_CX); dCy = py(DPAD_CY); dArm = ps(DM * 0.074f)
+        val dOff = dArm * 1.75f; dR.clear()
+        dR["dUp"] = mR(dCx, dCy - dOff, dArm); dR["dDown"] = mR(dCx, dCy + dOff, dArm)
+        dR["dLeft"] = mR(dCx - dOff, dCy, dArm); dR["dRight"] = mR(dCx + dOff, dCy, dArm)
 
-        // ── Top-center: VIEW pill, HOME circle, MENU pill ──
-        val pillW = ps(DESIGN_W * 0.104f)
-        val pillH = ps(DESIGN_MIN * 0.069f)
-        val homeR = ps(DESIGN_MIN * 0.053f)
+        val ax = pxR(DPAD_CX); val ay = py(DPAD_CY); val br = ps(DM * 0.074f); val ao = br * 1.75f; aR.clear()
+        aR["y"] = mR(ax, ay - ao, br); aR["x"] = mR(ax - ao, ay, br)
+        aR["b"] = mR(ax + ao, ay, br); aR["a"] = mR(ax, ay + ao, br)
 
-        val homeCx = px(HOME_X)
-        val homeCy = py(HOME_Y)
-        homeRect.set(homeCx - homeR, homeCy - homeR, homeCx + homeR, homeCy + homeR)
+        val l3R = ps(DM * 0.080f)
+        l3.set(pxL(L3_X) - l3R, py(L3_Y) - l3R, pxL(L3_X) + l3R, py(L3_Y) + l3R)
+        r3.set(pxR(L3_X) - l3R, py(L3_Y) - l3R, pxR(L3_X) + l3R, py(L3_Y) + l3R)
 
-        val viewCx = px(VIEW_X)
-        val viewCy = py(VIEW_Y)
-        val menuCx = px(MENU_X)
-        val menuCy = py(MENU_Y)
-
-        pillRects.clear()
-        pillRects["select"] = RectF(
-            viewCx - pillW / 2f, viewCy - pillH / 2f,
-            viewCx + pillW / 2f, viewCy + pillH / 2f
-        )
-        pillRects["start"] = RectF(
-            menuCx - pillW / 2f, menuCy - pillH / 2f,
-            menuCx + pillW / 2f, menuCy + pillH / 2f
-        )
-
-        // ── Sticks ──
-        lsR = ps(DESIGN_MIN * 0.179f)
-        lsKnobR = lsR * 0.40f
-        lsCx = px(LS_CX)
-        lsCy = py(LS_CY)
-        lsKnobX = lsCx
-        lsKnobY = lsCy
-
-        rsR = ps(DESIGN_MIN * 0.179f)
-        rsKnobR = rsR * 0.40f
-        rsCx = px(RS_CX)
-        rsCy = py(RS_CY)
-        rsKnobX = rsCx
-        rsKnobY = rsCy
-
-        // ── D-pad: 4 separate circles in a diamond (▲ / ◀ ▶ / ▼) ──
-        // Anchored to the true left edge via pxL() (see note above) —
-        // this is what actually pulls it out to the physical screen
-        // edge on wide phones instead of stopping at the letterboxed
-        // canvas edge.
-        val dpadCx = pxL(DPAD_CX)
-        val dpadCy = py(DPAD_CY)
-        val dR = ps(DESIGN_MIN * 0.074f)
-        val dOffset = dR * 1.75f
-        dpadRects.clear()
-        dpadRects["dUp"] = makeRect(dpadCx, dpadCy - dOffset, dR)
-        dpadRects["dLeft"] = makeRect(dpadCx - dOffset, dpadCy, dR)
-        dpadRects["dRight"] = makeRect(dpadCx + dOffset, dpadCy, dR)
-        dpadRects["dDown"] = makeRect(dpadCx, dpadCy + dOffset, dR)
-
-        // ── ABXY: 4 separate circles in a diamond ── (right-edge mirror of D-pad)
-        val abxyCx = pxR(DPAD_CX)
-        val abxyCy = py(DPAD_CY)
-        val br = ps(DESIGN_MIN * 0.074f)
-        val abxyOffset = br * 1.75f
-        abxyRects.clear()
-        abxyRects["y"] = makeRect(abxyCx, abxyCy - abxyOffset, br)
-        abxyRects["x"] = makeRect(abxyCx - abxyOffset, abxyCy, br)
-        abxyRects["b"] = makeRect(abxyCx + abxyOffset, abxyCy, br)
-        abxyRects["a"] = makeRect(abxyCx, abxyCy + abxyOffset, br)
-
-        // ── L3 / R3 — separate circular buttons beside the sticks ──
-        // R3 mirrors L3 from the right edge via pxR().
-        val l3R = ps(DESIGN_MIN * 0.053f)
-        val l3Cx = pxL(L3_X)
-        val l3Cy = py(L3_Y)
-        val r3Cx = pxR(L3_X)
-        val r3Cy = py(L3_Y)
-        l3Rect.set(l3Cx - l3R, l3Cy - l3R, l3Cx + l3R, l3Cy + l3R)
-        r3Rect.set(r3Cx - l3R, r3Cy - l3R, r3Cx + l3R, r3Cy + l3R)
+        updateGestureExclusion()
     }
 
-    private fun makeRect(cx: Float, cy: Float, radius: Float): RectF {
-        return RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+    /**
+     * Register gesture-exclusion rects for Android 10+ gesture navigation.
+     *
+     * Uses the platform maximum exclusion width (200dp) from each edge.
+     * This is the widest exclusion Android allows per-side — any rect
+     * extending beyond 200dp from the edge is silently truncated by the
+     * platform, so using the full 200dp guarantees maximum protection.
+     *
+     * Two full-height strips cover the left and right edges where all
+     * interactive controls live (LT/LB, D-pad, L3 on the left;
+     * RT/RB, ABXY, R3 on the right).  The bottom corners are already
+     * covered by these full-height strips.
+     *
+     * The rects are recomputed every time onSizeChanged fires (which
+     * covers orientation changes, window-resize, and inset changes).
+     * Only the GamepadView sets exclusion rects — when it is GONE
+     * (Home/BT/WiFi screens), no exclusions apply, so system Back
+     * works normally on those screens.
+     */
+    private fun updateGestureExclusion() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+
+        val rects = ArrayList<Rect>(4)
+        val density = resources.displayMetrics.density
+
+        // 200dp — the platform-wide maximum exclusion width from any edge.
+        // Using int round rather than toInt() to avoid truncation artefacts.
+        val strip = (200f * density + 0.5f).toInt()
+
+        // Left edge — full-height strip protects LT, LB, D-pad, L3,
+        // and the left analog stick's leftward approach zone.
+        rects.add(Rect(0, 0, strip, vh.toInt()))
+
+        // Right edge — full-height strip protects RT, RB, ABXY, R3,
+        // and the right analog stick's rightward approach zone.
+        rects.add(Rect(vw.toInt() - strip, 0, vw.toInt(), vh.toInt()))
+
+        // Bottom-left corner — extra depth for L3 which sits very
+        // close to the bottom edge; extends the left-strip's bottom.
+        rects.add(Rect(0, vh.toInt() - strip, strip, vh.toInt()))
+
+        // Bottom-right corner — same treatment for R3.
+        rects.add(Rect(vw.toInt() - strip, vh.toInt() - strip, vw.toInt(), vh.toInt()))
+
+        setSystemGestureExclusionRects(rects)
     }
 
-    private fun drawRoundBtn(canvas: Canvas, rect: RectF, pressed: Boolean, label: String) {
-        drawRoundBtn(canvas, rect, pressed, label, paintTextLight)
-    }
-
-    private fun drawRoundBtn(canvas: Canvas, rect: RectF, pressed: Boolean, label: String, paint: Paint) {
-        val cx = rect.centerX()
-        val cy = rect.centerY()
-        val r = (rect.right - rect.left) / 2f
-        canvas.drawCircle(cx, cy, r, if (pressed) paintRoundPressed else paintRound)
-        canvas.drawCircle(cx, cy, r, paintRoundStroke)
-        if (label.isNotEmpty()) {
-            canvas.drawText(label, cx, cy + paint.textSize / 3, paint)
-        }
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        canvas.drawPaint(paintClear)
-
-        // ── D-pad ──
-        drawRoundBtn(canvas, dpadRects["dUp"]!!, state.dUp, "\u25B2")
-        drawRoundBtn(canvas, dpadRects["dLeft"]!!, state.dLeft, "\u25C0")
-        drawRoundBtn(canvas, dpadRects["dRight"]!!, state.dRight, "\u25B6")
-        drawRoundBtn(canvas, dpadRects["dDown"]!!, state.dDown, "\u25BC")
-
-        // ── ABXY (label depends on controller style) ──
-        when (controllerStyle) {
-            ControllerStyle.XBOX -> {
-                drawRoundBtn(canvas, abxyRects["y"]!!, state.y, "Y")
-                drawRoundBtn(canvas, abxyRects["x"]!!, state.x, "X")
-                drawRoundBtn(canvas, abxyRects["b"]!!, state.b, "B")
-                drawRoundBtn(canvas, abxyRects["a"]!!, state.a, "A")
-            }
-            ControllerStyle.PS -> {
-                drawRoundBtn(canvas, abxyRects["y"]!!, state.y, "△", paintPsSymbol)
-                drawRoundBtn(canvas, abxyRects["x"]!!, state.x, "□", paintPsSymbol)
-                drawRoundBtn(canvas, abxyRects["b"]!!, state.b, "○", paintPsSymbol)
-                drawRoundBtn(canvas, abxyRects["a"]!!, state.a, "✖", paintPsSymbol)
-            }
-        }
-
-        // ── Top-corner shoulder/trigger (label depends on controller style) ──
-        val (ltLabel, lbLabel, rbLabel, rtLabel) = when (controllerStyle) {
-            ControllerStyle.XBOX -> arrayOf("LT", "LB", "RB", "RT")
-            ControllerStyle.PS   -> arrayOf("L2", "L1", "R1", "R2")
-        }
-        drawRoundBtn(canvas, roundRects["lt"]!!, state.lt > 0f, ltLabel)
-        drawRoundBtn(canvas, roundRects["lb"]!!, state.lb, lbLabel)
-        drawRoundBtn(canvas, roundRects["rb"]!!, state.rb, rbLabel)
-        drawRoundBtn(canvas, roundRects["rt"]!!, state.rt > 0f, rtLabel)
-
-        // ── L3 / R3 ──
-        drawRoundBtn(canvas, l3Rect, state.l3, "L3")
-        drawRoundBtn(canvas, r3Rect, state.r3, "R3")
-
-        // ── Top-center: VIEW pill / HOME circle / MENU pill ──
-        pillRects["select"]?.let { rect ->
-            canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, if (state.select) paintRoundPressed else paintRound)
-            canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, paintRoundStroke)
-            val viewLabel = if (controllerStyle == ControllerStyle.PS) "CREATE" else "VIEW"
-            canvas.drawText(viewLabel, rect.centerX(), rect.centerY() + paintTextMuted.textSize / 3, paintTextMuted)
-        }
-        pillRects["start"]?.let { rect ->
-            canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, if (state.start) paintRoundPressed else paintRound)
-            canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, paintRoundStroke)
-            val menuLabel = if (controllerStyle == ControllerStyle.PS) "OPTIONS" else "MENU"
-            canvas.drawText(menuLabel, rect.centerX(), rect.centerY() + paintTextMuted.textSize / 3, paintTextMuted)
-        }
-        drawRoundBtn(canvas, homeRect, homePressed, "")
-        if (controllerStyle == ControllerStyle.PS) {
-            // Draw a small "PS" label inside the home button for PlayStation mode
-            canvas.drawText("PS", homeRect.centerX(), homeRect.centerY() + paintTextMuted.textSize / 3, paintTextMuted)
+    /**
+     * Keep gesture-exclusion rects in sync with visibility.
+     * While VISIBLE they protect the on-screen controls; when the view is
+     * hidden (GONE/INVISIBLE) they are cleared so the system edge-swipe Back
+     * gesture works normally on the Home/Connect/Wi-Fi screens.
+     */
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility == View.VISIBLE) {
+            updateGestureExclusion()
         } else {
-            canvas.drawCircle(homeRect.centerX(), homeRect.centerY(), (homeRect.width() / 2f) * 0.32f, paintRoundStroke)
+            setSystemGestureExclusionRects(emptyList())
         }
-
-        // ── Left stick ──
-        canvas.drawCircle(lsCx, lsCy, lsR, paintStickBase)
-        canvas.drawCircle(lsCx, lsCy, lsR, paintStickRingOuter)
-        canvas.drawCircle(lsCx, lsCy, lsR * 0.62f, paintStickRingInner)
-        canvas.drawCircle(lsKnobX, lsKnobY, lsKnobR, paintStickCap)
-
-        // ── Right stick ──
-        canvas.drawCircle(rsCx, rsCy, rsR, paintStickBase)
-        canvas.drawCircle(rsCx, rsCy, rsR, paintStickRingOuter)
-        canvas.drawCircle(rsCx, rsCy, rsR * 0.62f, paintStickRingInner)
-        canvas.drawCircle(rsKnobX, rsKnobY, rsKnobR, paintStickCap)
     }
 
+    private fun mR(cx: Float, cy: Float, r: Float) = RectF(cx - r, cy - r, cx + r, cy + r)
+
+    // ═══ DRAWING ═══
+    override fun onDraw(canvas: Canvas) {
+        canvas.drawPaint(pBg)
+        drawDpad(canvas); drawAbxy(canvas); drawShoulders(canvas)
+        drawSmallBtn(canvas, l3, state.l3, "L3", pTxtD); drawSmallBtn(canvas, r3, state.r3, "R3", pTxtD)
+        drawSystem(canvas)
+        drawStick(canvas, lsCx, lsCy, lsR, lsK, lsKx, lsKy)
+        drawStick(canvas, rsCx, rsCy, rsR, rsK, rsKx, rsKy)
+    }
+
+    // ── Shared round button surface ──
+    private fun btnSurface(canvas: Canvas, cx: Float, cy: Float, r: Float, pressed: Boolean) {
+        // 1. Diffuse shadow — wider, softer for grounded feel
+        canvas.drawCircle(cx, cy + r * 0.06f, r * 1.04f, pShadowMed)
+        // 2. Contact shadow — tighter, directly under button
+        canvas.drawCircle(cx, cy + r * 0.03f, r * 0.92f, pShadowSmall)
+
+        // 3. Gradient surface — convex dome: light top-left → mid → darker bottom-right
+        pSurf.shader = LinearGradient(
+            cx - r, cy - r, cx + r * 0.6f, cy + r * 0.6f,
+            intArrayOf(cSurfH, cSurf, cSurfL),
+            floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP)
+        canvas.drawCircle(cx, cy, r, pSurf); pSurf.shader = null
+
+        // 4. Upper-left specular highlight — soft elliptical sheen
+        canvas.drawCircle(cx - r * 0.18f, cy - r * 0.22f, r * 0.40f, pHLSoft)
+
+        // 5. Subtle rim for edge definition
+        pRim.color = cRim; canvas.drawCircle(cx, cy, r, pRim)
+
+        if (pressed) {
+            // 6a. Inset shadow — button appears physically depressed
+            pInset.color = cInset
+            canvas.drawCircle(cx, cy + r * 0.02f, r * 0.90f, pInset)
+            // 6b. Accent glow — restrained illumination
+            pGlow.alpha = 30; canvas.drawCircle(cx, cy, r * 1.06f, pGlow)
+            // 6c. Accent ring on edge
+            pGlowRing.strokeWidth = swGlowRing; pGlowRing.alpha = 160
+            canvas.drawCircle(cx, cy, r, pGlowRing)
+        }
+    }
+
+    // ── D-pad: 4 independent buttons ──
+    private fun drawDpad(canvas: Canvas) {
+        val cx = dCx; val cy = dCy; val r = dArm; val off = r * 1.75f
+        val dirs = listOf("dUp" to "\u25B2", "dDown" to "\u25BC", "dLeft" to "\u25C0", "dRight" to "\u25B6")
+        val offsets = mapOf("dUp" to Pair(0f, -off), "dDown" to Pair(0f, off), "dLeft" to Pair(-off, 0f), "dRight" to Pair(off, 0f))
+        for ((k, g) in dirs) {
+            val pr = when (k) { "dUp" -> state.dUp; "dDown" -> state.dDown; "dLeft" -> state.dLeft; "dRight" -> state.dRight; else -> false }
+            val (ox, oy) = offsets[k]!!; val bx = cx + ox; val by = cy + oy
+            btnSurface(canvas, bx, by, r, pr)
+            canvas.drawText(g, bx, by + (if (pr) pTxtFace else pTxtM).textSize / 3, if (pr) pTxtFace else pTxtM)
+        }
+    }
+
+    // ── ABXY face buttons ──
+    private fun drawAbxy(canvas: Canvas) {
+        val cols = mapOf("y" to cY, "x" to cX, "b" to cB, "a" to cA)
+        val entries = listOf("y" to state.y, "x" to state.x, "b" to state.b, "a" to state.a)
+        for ((k, pr) in entries) {
+            val rc = aR[k]!!; val bx = rc.centerX(); val by = rc.centerY(); val r = (rc.right - rc.left) / 2f
+            btnSurface(canvas, bx, by, r, pr)
+            if (!pr) {
+                // Color-coded rim — subtle tinted edge
+                pColorRim.color = cols[k]!!; pColorRim.alpha = 55
+                canvas.drawCircle(bx, by, r, pColorRim)
+            }
+            val lbl = if (controllerStyle == ControllerStyle.PS) when (k) { "y" -> "\u25B3"; "x" -> "\u25A1"; "b" -> "\u25CB"; else -> "\u2716" } else k.uppercase()
+            val tp = if (controllerStyle == ControllerStyle.PS) pTxtPs else pTxtFace
+            canvas.drawText(lbl, bx, by + tp.textSize / 3, tp)
+        }
+    }
+
+    // ── Shoulder buttons ──
+    private fun drawShoulders(canvas: Canvas) {
+        val (ltL, lbL, rbL, rtL) = if (controllerStyle == ControllerStyle.XBOX) arrayOf("LT", "LB", "RB", "RT") else arrayOf("L2", "L1", "R1", "R2")
+        drawSh(canvas, sR["lt"]!!, state.lt > 0f, ltL); drawSh(canvas, sR["lb"]!!, state.lb, lbL)
+        drawSh(canvas, sR["rb"]!!, state.rb, rbL); drawSh(canvas, sR["rt"]!!, state.rt > 0f, rtL)
+    }
+
+    private fun drawSh(canvas: Canvas, rc: RectF, pr: Boolean, lbl: String) {
+        val cx = rc.centerX(); val cy = rc.centerY(); val r = (rc.right - rc.left) / 2f
+        btnSurface(canvas, cx, cy, r, pr)
+        canvas.drawText(lbl, cx, cy + pTxtD.textSize / 3, pTxtD)
+    }
+
+    // ── L3 / R3 ──
+    private fun drawSmallBtn(canvas: Canvas, rc: RectF, pr: Boolean, lbl: String, tp: Paint) {
+        val cx = rc.centerX(); val cy = rc.centerY(); val r = (rc.right - rc.left) / 2f
+        btnSurface(canvas, cx, cy, r, pr)
+        canvas.drawText(lbl, cx, cy + tp.textSize / 3, tp)
+    }
+
+    // ── System buttons ──
+    private fun drawSystem(canvas: Canvas) {
+        pR["select"]?.let { drawPill(canvas, it, state.select, if (controllerStyle == ControllerStyle.PS) "CREATE" else "VIEW") }
+        pR["start"]?.let { drawPill(canvas, it, state.start, if (controllerStyle == ControllerStyle.PS) "OPTIONS" else "MENU") }
+        val hx = hR.centerX(); val hy = hR.centerY(); val hr = hR.width() / 2f
+        btnSurface(canvas, hx, hy, hr, homeP)
+        if (controllerStyle == ControllerStyle.PS) canvas.drawText("PS", hx, hy + pTxtM.textSize / 3, pTxtM)
+        else {
+            pRimThin.color = cRim; canvas.drawCircle(hx, hy, hr * 0.32f, pRimThin)
+        }
+    }
+
+    private fun drawPill(canvas: Canvas, rc: RectF, pr: Boolean, lbl: String) {
+        val cr = rc.height() / 2f
+        // Shadow
+        canvas.drawRoundRect(RectF(rc.left, rc.top + 4f, rc.right, rc.bottom + 4f), cr, cr, pShadowMed)
+        // Gradient surface
+        pSurf.shader = LinearGradient(rc.left, rc.top, rc.left, rc.bottom,
+            intArrayOf(cSurfH, cSurf, cSurfL),
+            floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(rc, cr, cr, pSurf); pSurf.shader = null
+        // Top highlight
+        val hlR = RectF(rc.left + 3, rc.top + 1, rc.right - 3, rc.top + rc.height() * 0.35f)
+        canvas.drawRoundRect(hlR, cr * 0.5f, cr * 0.5f, pHLSoft)
+        // Rim
+        pRimThin.color = cRim; canvas.drawRoundRect(rc, cr, cr, pRimThin)
+        if (pr) {
+            pInset.color = cInsetPill
+            canvas.drawRoundRect(RectF(rc.left + 1, rc.top + 1.5f, rc.right - 1, rc.bottom - 1), cr, cr, pInset)
+            pGlow.alpha = 22; canvas.drawRoundRect(RectF(rc.left - 3, rc.top - 3, rc.right + 3, rc.bottom + 3), cr + 3, cr + 3, pGlow)
+        }
+        canvas.drawText(lbl, rc.centerX(), rc.centerY() + pTxtPill.textSize / 3, pTxtPill)
+    }
+
+    // ── Analog sticks — wide, low-profile console thumbstick ──
+    //
+    // Visual construction avoids radial-gradient "ball" shading.
+    // Uses linear top-to-bottom gradients for a flat/wide surface,
+    // with a separate concave depression layer.
+    private fun drawStick(canvas: Canvas, cx: Float, cy: Float, r: Float, kR: Float, kX: Float, kY: Float) {
+        val moved = (kX != cx || kY != cy)
+
+        // ── 1. Contact shadow ──
+        // Wide, very soft, offset down. Grounds the stick without
+        // making it look like it's hovering above a deep hole.
+        canvas.drawCircle(cx + r * 0.008f, cy + r * 0.04f, r * 0.88f, pShadowMed)
+
+        // ── 2. Socket — shallow recessed disc ──
+        // A gentle linear gradient (light top → dark bottom) creates
+        // the impression of a shallow concavity without a spherical bowl.
+        pWellBase.shader = LinearGradient(
+            cx, cy - r, cx, cy + r,
+            intArrayOf(cSurfL, cWell, cWellDeep),
+            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+        canvas.drawCircle(cx, cy, r, pWellBase); pWellBase.shader = null
+
+        // ── 3. Socket rim — single soft ring ──
+        pWellRim.color = cWellEdge; pWellRim.strokeWidth = swWellRim
+        canvas.drawCircle(cx, cy, r, pWellRim)
+
+        // ── 4. Accent glow — only when actively moved ──
+        if (moved) {
+            pGlow.alpha = 12; canvas.drawCircle(cx, cy, r * 1.03f, pGlow)
+        }
+
+        // ── 5. Cap shadow — thin contact shadow ──
+        // Very slight offset to suggest the cap sits just above the socket.
+        canvas.drawCircle(kX + r * 0.008f, kY + r * 0.02f, kR * 1.005f, pShadowSmall)
+
+        // ── 6. Cap base — FLAT rubber surface ──
+        // This is the key change: a LINEAR top-to-bottom gradient
+        // (not radial) makes the surface read as FLAT and WIDE,
+        // like a real rubber thumbstick pad seen from above.
+        // Top catches light → slightly lighter. Bottom is shaded → darker.
+        val capTop = if (moved) Color.parseColor("#949CAA") else Color.parseColor("#A4ACBC")
+        val capBot = if (moved) Color.parseColor("#7A8292") else Color.parseColor("#8A92A2")
+        pCap.shader = LinearGradient(
+            kX, kY - kR, kX, kY + kR,
+            intArrayOf(capTop, capTop, capBot),
+            floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
+        canvas.drawCircle(kX, kY, kR, pCap); pCap.shader = null
+
+        // ── 7. Concave depression — the center is slightly LOWER ──
+        // A subtle darker ellipse in the upper-center suggests the
+        // thumb pad curves inward (concave), not outward (convex).
+        // This directly counteracts the "raised bump" appearance.
+        pCapHL.alpha = 18
+        canvas.drawOval(
+            kX - kR * 0.50f, kY - kR * 0.35f,
+            kX + kR * 0.50f, kY + kR * 0.25f,
+            pCapHL)
+
+        // ── 8. Edge bevel — soft dark ring ──
+        // A thin, low-contrast ring at the cap perimeter gives
+        // the rubber pad a beveled edge without looking like a button outline.
+        pCapRim.color = Color.parseColor(if (moved) "#6A7282" else "#747C8C")
+        pCapRim.strokeWidth = swCapRim * 0.7f
+        canvas.drawCircle(kX, kY, kR, pCapRim)
+
+        // ── 9. Upper surface highlight — broad soft band ──
+        // A wide, diffuse elliptical highlight across the top third
+        // of the cap. This reinforces the flat/wide surface reading
+        // rather than a spherical highlight point.
+        pCapHL.alpha = 22
+        canvas.drawOval(
+            kX - kR * 0.55f, kY - kR * 0.70f,
+            kX + kR * 0.55f, kY - kR * 0.10f,
+            pCapHL)
+
+        // ── 10. Center grip — subtle concave dimple ──
+        // A small, soft, slightly darkened area in the very center
+        // suggests rubber grip texture in the concave depression.
+        canvas.drawCircle(kX, kY - kR * 0.05f, kR * 0.14f, pDimple)
+    }
+
+    // ═══ TOUCH + STATE — UNCHANGED ═══
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                val idx = event.actionIndex
-                val pid = event.getPointerId(idx)
-                val x = event.getX(idx)
-                val y = event.getY(idx)
-                findControlAt(x, y)?.let { control ->
-                    pointerMap[pid] = control
-                    updateState(control, x, y, true)
-                    invalidate()
-                    return true
-                }
+                val i = event.actionIndex; val pid = event.getPointerId(i)
+                fAt(event.getX(i), event.getY(i))?.let { c -> pMap[pid] = c; uS(c, event.getX(i), event.getY(i), true); invalidate(); return true }
             }
-            MotionEvent.ACTION_MOVE -> {
-                for (i in 0 until event.pointerCount) {
-                    val pid = event.getPointerId(i)
-                    val control = pointerMap[pid] ?: continue
-                    updateState(control, event.getX(i), event.getY(i), true)
-                }
-                invalidate()
-                return true
-            }
+            MotionEvent.ACTION_MOVE -> { for (i in 0 until event.pointerCount) { val pid = event.getPointerId(i); pMap[pid]?.let { c -> uS(c, event.getX(i), event.getY(i), true) } }; invalidate(); return true }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                val idx = event.actionIndex
-                val pid = event.getPointerId(idx)
-                pointerMap.remove(pid)?.let { control ->
-                    updateState(control, 0f, 0f, false)
-                    invalidate()
-                    return true
-                }
+                val i = event.actionIndex; val pid = event.getPointerId(i)
+                pMap.remove(pid)?.let { c -> uS(c, 0f, 0f, false); invalidate(); return true }
             }
-            MotionEvent.ACTION_CANCEL -> {
-                pointerMap.clear()
-                resetState()
-                invalidate()
-                return true
-            }
+            MotionEvent.ACTION_CANCEL -> { pMap.clear(); rS(); invalidate(); return true }
         }
         return super.onTouchEvent(event)
     }
 
-    private fun findControlAt(x: Float, y: Float): String? {
-        // Small/specific hit areas first, so they take priority over
-        // the larger stick catchment areas below.
-        if (l3Rect.contains(x, y)) return "l3"
-        if (r3Rect.contains(x, y)) return "r3"
-        if (homeRect.contains(x, y)) return "home"
-
-        roundRects.forEach { (name, rect) ->
-            if (rect.contains(x, y)) return name
-        }
-        pillRects.forEach { (name, rect) ->
-            if (rect.contains(x, y)) return name
-        }
-        abxyRects.forEach { (name, rect) ->
-            if (rect.contains(x, y)) return name
-        }
-        dpadRects.forEach { (name, rect) ->
-            if (rect.contains(x, y)) return name
-        }
-
-        // Sticks last (larger catchment radius for reliable dragging)
-        if (dist(x, y, lsCx, lsCy) < lsR * 1.25f) return "leftStick"
-        if (dist(x, y, rsCx, rsCy) < rsR * 1.25f) return "rightStick"
-
-        return null
+    private fun fAt(x: Float, y: Float): String? {
+        if (l3.contains(x, y)) return "l3"; if (r3.contains(x, y)) return "r3"; if (hR.contains(x, y)) return "home"
+        sR.forEach { (n, r) -> if (r.contains(x, y)) return n }; pR.forEach { (n, r) -> if (r.contains(x, y)) return n }
+        aR.forEach { (n, r) -> if (r.contains(x, y)) return n }; dR.forEach { (n, r) -> if (r.contains(x, y)) return n }
+        if (d(x, y, lsCx, lsCy) < lsR * 1.25f) return "leftStick"; if (d(x, y, rsCx, rsCy) < rsR * 1.25f) return "rightStick"; return null
     }
 
-    private fun updateState(control: String, x: Float, y: Float, pressed: Boolean) {
-        when (control) {
-            "leftStick" -> {
-                if (!pressed) {
-                    lsKnobX = lsCx
-                    lsKnobY = lsCy
-                    state = state.copy(lx = 0f, ly = 0f)
-                } else {
-                    val dx = (x - lsCx) / lsR
-                    val dy = (y - lsCy) / lsR
-                    val len = kotlin.math.hypot(dx, dy)
-                    val (cx, cy) = if (len > 1f) {
-                        val s = 1f / len
-                        Pair(dx * s, dy * s)
-                    } else Pair(dx, dy)
-                    lsKnobX = lsCx + cx * lsR
-                    lsKnobY = lsCy + cy * lsR
-                    state = state.copy(lx = cx, ly = -cy)
-                }
-            }
-            "rightStick" -> {
-                if (!pressed) {
-                    rsKnobX = rsCx
-                    rsKnobY = rsCy
-                    state = state.copy(rx = 0f, ry = 0f)
-                } else {
-                    val dx = (x - rsCx) / rsR
-                    val dy = (y - rsCy) / rsR
-                    val len = kotlin.math.hypot(dx, dy)
-                    val (cx, cy) = if (len > 1f) {
-                        val s = 1f / len
-                        Pair(dx * s, dy * s)
-                    } else Pair(dx, dy)
-                    rsKnobX = rsCx + cx * rsR
-                    rsKnobY = rsCy + cy * rsR
-                    state = state.copy(rx = cx, ry = -cy)
-                }
-            }
-            "a" -> state = state.copy(a = pressed)
-            "b" -> state = state.copy(b = pressed)
-            "x" -> state = state.copy(x = pressed)
-            "y" -> state = state.copy(y = pressed)
-            "lb" -> state = state.copy(lb = pressed)
-            "rb" -> state = state.copy(rb = pressed)
-            "lt" -> state = state.copy(lt = if (pressed) 1f else 0f)
-            "rt" -> state = state.copy(rt = if (pressed) 1f else 0f)
-            "dUp" -> state = state.copy(dUp = pressed)
-            "dDown" -> state = state.copy(dDown = pressed)
-            "dLeft" -> state = state.copy(dLeft = pressed)
-            "dRight" -> state = state.copy(dRight = pressed)
-            "start" -> state = state.copy(start = pressed)
-            "select" -> state = state.copy(select = pressed)
-            "l3" -> state = state.copy(l3 = pressed)
-            "r3" -> state = state.copy(r3 = pressed)
-            "home" -> {
-                // No GamepadState field exists for Home — visual feedback
-                // only, deliberately never touches protocol state.
-                homePressed = pressed
-            }
+    private fun uS(c: String, x: Float, y: Float, p: Boolean) {
+        when (c) {
+            "leftStick" -> if (!p) { lsKx = lsCx; lsKy = lsCy; state = state.copy(lx = 0f, ly = 0f) } else { val dx = (x - lsCx) / lsR; val dy = (y - lsCy) / lsR; val l = kotlin.math.hypot(dx, dy); val (cx2, cy2) = if (l > 1f) { val s = 1f / l; Pair(dx * s, dy * s) } else Pair(dx, dy); lsKx = lsCx + cx2 * lsR; lsKy = lsCy + cy2 * lsR; state = state.copy(lx = cx2, ly = -cy2) }
+            "rightStick" -> if (!p) { rsKx = rsCx; rsKy = rsCy; state = state.copy(rx = 0f, ry = 0f) } else { val dx = (x - rsCx) / rsR; val dy = (y - rsCy) / rsR; val l = kotlin.math.hypot(dx, dy); val (cx2, cy2) = if (l > 1f) { val s = 1f / l; Pair(dx * s, dy * s) } else Pair(dx, dy); rsKx = rsCx + cx2 * rsR; rsKy = rsCy + cy2 * rsR; state = state.copy(rx = cx2, ry = -cy2) }
+            "a" -> state = state.copy(a = p); "b" -> state = state.copy(b = p); "x" -> state = state.copy(x = p); "y" -> state = state.copy(y = p)
+            "lb" -> state = state.copy(lb = p); "rb" -> state = state.copy(rb = p)
+            "lt" -> state = state.copy(lt = if (p) 1f else 0f); "rt" -> state = state.copy(rt = if (p) 1f else 0f)
+            "dUp" -> state = state.copy(dUp = p); "dDown" -> state = state.copy(dDown = p); "dLeft" -> state = state.copy(dLeft = p); "dRight" -> state = state.copy(dRight = p)
+            "start" -> state = state.copy(start = p); "select" -> state = state.copy(select = p)
+            "l3" -> state = state.copy(l3 = p); "r3" -> state = state.copy(r3 = p)
+            "home" -> homeP = p
         }
         listener?.onStateChanged(state)
     }
 
-    private fun resetState() {
-        state = GamepadState()
-        homePressed = false
-        lsKnobX = lsCx
-        lsKnobY = lsCy
-        rsKnobX = rsCx
-        rsKnobY = rsCy
-        listener?.onStateChanged(state)
-    }
-
-    private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
-        return kotlin.math.hypot(x1 - x2, y1 - y2)
-    }
+    private fun rS() { state = GamepadState(); homeP = false; lsKx = lsCx; lsKy = lsCy; rsKx = rsCx; rsKy = rsCy; listener?.onStateChanged(state) }
+    private fun d(x1: Float, y1: Float, x2: Float, y2: Float) = kotlin.math.hypot(x1 - x2, y1 - y2)
 }
